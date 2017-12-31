@@ -1,0 +1,6 @@
+[package]
+name = "usrnet"
+version = "0.1.0"
+authors = ["Andrei Maximov <andrei.maximov@gmail.com>"]
+
+[dependencies]
