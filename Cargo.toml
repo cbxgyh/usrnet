@@ -4,3 +4,7 @@ version = "0.1.0"
 authors = ["Andrei Maximov <andrei.maximov@gmail.com>"]
 
 [dependencies]
+libc = "0.2"
+
+[[example]]
+name = "arp"
