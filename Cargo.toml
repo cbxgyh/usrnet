@@ -6,7 +6,6 @@ authors = ["Andrei Maximov <andrei.maximov@gmail.com>"]
 [dependencies]
 byteorder = "1"
 libc = "0.2"
-scopeguard = "0.3.3"
 
 [[example]]
 name = "arp"

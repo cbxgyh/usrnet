@@ -1,0 +1,119 @@
+use std;
+use std::io::Write;
+
+use byteorder::{
+    NetworkEndian,
+    WriteBytesExt,
+};
+
+use core::repr::{
+    Error,
+    Result,
+};
+
+/// [MAC address](https://en.wikipedia.org/wiki/MAC_address) in network byte order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Address([u8; 6]);
+
+impl Address {
+    pub const BROADCAST: Address = Address([0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
+
+    /// Creates a MAC address from a network byte order buffer.
+    pub fn new(addr: [u8; 6]) -> Address {
+        Address(addr)
+    }
+
+    /// Returns a reference to the network byte order representation of the address.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for Address {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "{:X}:{:X}:{:X}:{:X}:{:X}:{:X}",
+            self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5],
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// [https://en.wikipedia.org/wiki/EtherType](https://en.wikipedia.org/wiki/EtherType)
+pub enum Type {
+    Arp = 0x0806,
+}
+
+mod fields {
+    use std;
+
+    pub const DST_ADDR: std::ops::Range<usize> = 0..6;
+
+    pub const SRC_ADDR: std::ops::Range<usize> = 6..12;
+
+    pub const PAYLOAD_TYPE: std::ops::Range<usize> = 12..14;
+
+    pub const PAYLOAD: std::ops::RangeFrom<usize> = 14..;
+}
+
+/// Ethernet frame with an owned byte buffer.
+pub struct Frame<T>
+where
+    T: AsRef<[u8]>,
+{
+    buffer: T,
+}
+
+impl<T> Frame<T>
+where
+    T: AsRef<[u8]>,
+{
+    pub const MIN_BUFFER_SIZE: usize = 14;
+
+    /// Creates an Ethernet frame by taking ownership of the buffer.
+    ///
+    /// You should ensure the buffer contains at least buffer_len() bytes to avoid errors.
+    pub fn new(buffer: T) -> Result<Frame<T>> {
+        if buffer.as_ref().len() < Self::MIN_BUFFER_SIZE {
+            return Err(Error::Buffer);
+        }
+
+        Ok(Frame { buffer })
+    }
+
+    /// Returns the length of an Ethernet frame with the specified payload size.
+    pub fn buffer_len(payload_len: usize) -> usize {
+        Self::MIN_BUFFER_SIZE + payload_len
+    }
+}
+
+impl<T> Frame<T>
+where
+    T: AsRef<[u8]> + AsMut<[u8]>,
+{
+    /// Sets the hardware destination address.
+    pub fn set_dst_addr(&mut self, addr: Address) {
+        (&mut self.buffer.as_mut()[fields::DST_ADDR])
+            .write(addr.as_bytes())
+            .unwrap();
+    }
+
+    /// Sets the hardware source address, usually that of the link.
+    pub fn set_src_addr(&mut self, addr: Address) {
+        (&mut self.buffer.as_mut()[fields::SRC_ADDR])
+            .write(addr.as_bytes())
+            .unwrap();
+    }
+
+    /// Sets the payload type.
+    pub fn set_payload_type(&mut self, payload_type: Type) {
+        (&mut self.buffer.as_mut()[fields::PAYLOAD_TYPE])
+            .write_u16::<NetworkEndian>(payload_type as u16)
+            .unwrap();
+    }
+
+    pub fn payload_mut(&mut self) -> &mut [u8] {
+        &mut self.buffer.as_mut()[fields::PAYLOAD]
+    }
+}

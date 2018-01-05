@@ -1,7 +1,5 @@
 extern crate byteorder;
 extern crate libc;
-#[macro_use(defer)]
-extern crate scopeguard;
 
 pub mod core;
 

@@ -1,8 +1,9 @@
 use std;
-use std::borrow::{Borrow, BorrowMut};
-use std::ops::DerefMut;
 
-use core::link::{Error as LinkError, Link};
+use core::link::{
+    Error as LinkError,
+    Link,
+};
 
 #[derive(Debug)]
 pub enum Error {
@@ -26,9 +27,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// responsibility is to provide a buffer allocation strategy for sending and
 /// receiving frames across a Link.
 pub trait Device<'a> {
-    type TxBuffer: std::borrow::BorrowMut<[u8]>;
+    type TxBuffer: AsMut<[u8]>;
 
-    type RxBuffer: std::borrow::Borrow<[u8]>;
+    type RxBuffer: AsRef<[u8]>;
 
     /// Returns a TxBuffer with at least buffer_len bytes.
     ///
@@ -45,22 +46,22 @@ pub trait Device<'a> {
     fn recv(&'a mut self) -> Result<Self::RxBuffer>;
 }
 
-/// A Device implementation which reuses heap allocated send/recv buffers.
+/// A Device which reuses preallocated Tx/Rx buffers.
 pub struct Standard {
     link: Box<Link>,
-    tx: std::vec::Vec<u8>,
-    rx: std::vec::Vec<u8>,
+    tx_buffer: std::vec::Vec<u8>,
+    rx_buffer: std::vec::Vec<u8>,
 }
 
 impl Standard {
     /// Creates a Standard device.
     pub fn new(link: Box<Link>) -> Result<Standard> {
-        let mtu = link.max_transmission_unit()?;
+        let mtu = link.get_max_transmission_unit()?;
 
         Ok(Standard {
             link: link,
-            tx: vec![0; mtu],
-            rx: vec![0; mtu],
+            tx_buffer: vec![0; mtu],
+            rx_buffer: vec![0; mtu],
         })
     }
 }
@@ -71,42 +72,42 @@ impl<'a> Device<'a> for Standard {
     type RxBuffer = &'a [u8];
 
     fn send(&'a mut self, buffer_len: usize) -> Result<Self::TxBuffer> {
-        if buffer_len >= self.tx.len() {
+        if buffer_len >= self.tx_buffer.len() {
             return Err(Error::Overflow);
         }
 
         Ok(TxBuffer {
-            link: self.link.deref_mut(),
-            tx: self.tx.deref_mut(),
+            link: self.link.as_mut(),
+            tx_buffer: &mut self.tx_buffer[..buffer_len],
         })
     }
 
     fn recv(&'a mut self) -> Result<Self::RxBuffer> {
-        let buffer_len = self.link.recv(&mut self.rx)?;
-        Ok(&self.rx[..buffer_len])
+        let buffer_len = self.link.recv(&mut self.rx_buffer)?;
+        Ok(&self.rx_buffer[..buffer_len])
     }
 }
 
 /// A TxBuffer for a Device which uses a heap allocated Vec for storage.
 pub struct TxBuffer<'a> {
     link: &'a mut Link,
-    tx: &'a mut [u8],
+    tx_buffer: &'a mut [u8],
 }
 
-impl<'a> Borrow<[u8]> for TxBuffer<'a> {
-    fn borrow(&self) -> &[u8] {
-        self.tx.borrow()
+impl<'a> AsRef<[u8]> for TxBuffer<'a> {
+    fn as_ref(&self) -> &[u8] {
+        self.tx_buffer.as_ref()
     }
 }
 
-impl<'a> BorrowMut<[u8]> for TxBuffer<'a> {
-    fn borrow_mut(&mut self) -> &mut [u8] {
-        self.tx.borrow_mut()
+impl<'a> AsMut<[u8]> for TxBuffer<'a> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.tx_buffer.as_mut()
     }
 }
 
 impl<'a> Drop for TxBuffer<'a> {
     fn drop(&mut self) {
-        self.link.send(self.tx).unwrap();
+        self.link.send(self.tx_buffer).unwrap();
     }
 }
