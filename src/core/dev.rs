@@ -4,12 +4,16 @@ use core::link::{
     Error as LinkError,
     Link,
 };
+use core::repr::{
+    Ipv4,
+    Mac,
+};
 
 #[derive(Debug)]
 pub enum Error {
     /// Indicates a Link layer error.
     Link(LinkError),
-    /// Indicates an error where the buffer is not large enough.
+    /// Indicates an error where a buffer was not large enough.
     Overflow,
 }
 
@@ -23,9 +27,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// A high level interface for sending frames across a link.
 ///
-/// While a device should be backed by an underlying Link, it's main
-/// responsibility is to provide a buffer allocation strategy for sending and
-/// receiving frames across a Link.
+/// While a device should be backed by an underlying link, it's main job
+/// is to provide a buffer allocation strategy for sending and receiving frames
+/// across a link and associate the link with a set of addresses.
 pub trait Device<'a> {
     type TxBuffer: AsMut<[u8]>;
 
@@ -33,8 +37,8 @@ pub trait Device<'a> {
 
     /// Returns a TxBuffer with at least buffer_len bytes.
     ///
-    /// Callers can write to the TxBuffer ad once dropped, the TxBuffer should
-    /// write to the underlying Link. Implementations must support a single
+    /// Callers can write to the TxBuffer. Once dropped, the TxBuffer should
+    /// write to the underlying link. Implementations must support a single
     /// outstanding TxBuffer at a time.
     ///
     /// # Panics
@@ -42,31 +46,41 @@ pub trait Device<'a> {
     /// A panic may be triggered if more than one TxBuffer exists at a time.
     fn send(&'a mut self, buffer_len: usize) -> Result<Self::TxBuffer>;
 
-    /// Returns an RxBuffer from the underlying link.
+    /// Returns a frame from the underlying link in an RxBuffer.
     fn recv(&'a mut self) -> Result<Self::RxBuffer>;
+
+    /// Returns the Ipv4 address associated with the device.
+    fn get_ipv4_addr(&self) -> Ipv4;
+
+    /// Returns the ethernet address associated with the device.
+    fn get_ethernet_addr(&self) -> Mac;
 }
 
 /// A Device which reuses preallocated Tx/Rx buffers.
-pub struct Standard {
-    link: Box<Link>,
+pub struct Standard<T: Link> {
+    link: T,
     tx_buffer: std::vec::Vec<u8>,
     rx_buffer: std::vec::Vec<u8>,
+    ipv4_addr: Ipv4,
+    eth_addr: Mac,
 }
 
-impl Standard {
+impl<T: Link> Standard<T> {
     /// Creates a Standard device.
-    pub fn new(link: Box<Link>) -> Result<Standard> {
+    pub fn new(link: T, ipv4_addr: Ipv4, eth_addr: Mac) -> Result<Standard<T>> {
         let mtu = link.get_max_transmission_unit()?;
 
         Ok(Standard {
             link: link,
             tx_buffer: vec![0; mtu],
             rx_buffer: vec![0; mtu],
+            ipv4_addr: ipv4_addr,
+            eth_addr: eth_addr,
         })
     }
 }
 
-impl<'a> Device<'a> for Standard {
+impl<'a, T: Link> Device<'a> for Standard<T> {
     type TxBuffer = TxBuffer<'a>;
 
     type RxBuffer = &'a [u8];
@@ -77,7 +91,7 @@ impl<'a> Device<'a> for Standard {
         }
 
         Ok(TxBuffer {
-            link: self.link.as_mut(),
+            link: &mut self.link,
             tx_buffer: &mut self.tx_buffer[..buffer_len],
         })
     }
@@ -85,6 +99,14 @@ impl<'a> Device<'a> for Standard {
     fn recv(&'a mut self) -> Result<Self::RxBuffer> {
         let buffer_len = self.link.recv(&mut self.rx_buffer)?;
         Ok(&self.rx_buffer[..buffer_len])
+    }
+
+    fn get_ipv4_addr(&self) -> Ipv4 {
+        self.ipv4_addr
+    }
+
+    fn get_ethernet_addr(&self) -> Mac {
+        self.eth_addr
     }
 }
 

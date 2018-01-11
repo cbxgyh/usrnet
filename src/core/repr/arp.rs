@@ -15,7 +15,7 @@ use core::repr::{
 
 #[repr(u16)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-1
+// https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-1
 pub enum Op {
     Request = 0x0001,
     Reply = 0x0002,
@@ -25,14 +25,14 @@ pub enum Op {
 
 #[repr(u16)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-2
+// https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-2
 pub enum HwType {
     Ethernet = 0x0001,
 }
 
 #[repr(u16)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-3
+// https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-3
 pub enum ProtoType {
     Ipv4 = 0x0800,
 }

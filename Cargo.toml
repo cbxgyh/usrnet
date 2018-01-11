@@ -4,8 +4,14 @@ version = "0.1.0"
 authors = ["Andrei Maximov <andrei.maximov@gmail.com>"]
 
 [dependencies]
-byteorder = "1"
+byteorder = "1.0"
 libc = "0.2"
 
+[dev-dependencies]
+clap = "2.29"
+
 [[example]]
-name = "arp"
+name = "arping"
+
+[[example]]
+name = "tap_up"

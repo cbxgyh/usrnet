@@ -33,9 +33,31 @@ impl std::fmt::Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "{:X}:{:X}:{:X}:{:X}:{:X}:{:X}",
+            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
             self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5],
         )
+    }
+}
+
+impl std::str::FromStr for Address {
+    type Err = ();
+
+    /// Parses a MAC address from an A:B:C:D:E:F style string.
+    fn from_str(addr: &str) -> std::result::Result<Address, Self::Err> {
+        let (bytes, unknown): (Vec<_>, Vec<_>) = addr.split(":")
+            .map(|token| u8::from_str_radix(token, 16))
+            .partition(|byte| !byte.is_err());
+
+        if bytes.len() != 6 || unknown.len() > 0 {
+            return Err(());
+        }
+
+        let bytes: Vec<_> = bytes.into_iter().map(|byte| byte.unwrap()).collect();
+
+        let mut mac: [u8; 6] = [0; 6];
+        mac.clone_from_slice(&bytes);
+
+        Ok(Address::new(mac))
     }
 }
 
