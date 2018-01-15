@@ -3,6 +3,7 @@ use std::io::Write;
 
 use byteorder::{
     NetworkEndian,
+    ReadBytesExt,
     WriteBytesExt,
 };
 
@@ -21,6 +22,17 @@ impl Address {
     /// Creates a MAC address from a network byte order buffer.
     pub fn new(addr: [u8; 6]) -> Address {
         Address(addr)
+    }
+
+    /// Creates a MAC address from a network byte order slice.
+    pub fn try_from(addr: &[u8]) -> Result<Address> {
+        if addr.len() != 6 {
+            return Err(Error::Size);
+        }
+
+        let mut _addr: [u8; 6] = [0; 6];
+        _addr.clone_from_slice(addr);
+        Ok(Address(_addr))
     }
 
     /// Returns a reference to the network byte order representation of the address.
@@ -98,7 +110,7 @@ where
     /// You should ensure the buffer contains at least buffer_len() bytes to avoid errors.
     pub fn new(buffer: T) -> Result<Frame<T>> {
         if buffer.as_ref().len() < Self::MIN_BUFFER_SIZE {
-            return Err(Error::Buffer);
+            return Err(Error::Size);
         }
 
         Ok(Frame { buffer })
@@ -107,6 +119,23 @@ where
     /// Returns the length of an Ethernet frame with the specified payload size.
     pub fn buffer_len(payload_len: usize) -> usize {
         Self::MIN_BUFFER_SIZE + payload_len
+    }
+
+    /// Returns the payload type of the frame or an error containing the unknown code.
+    pub fn get_payload_type(&self) -> std::result::Result<Type, u16> {
+        let payload_type = (&self.buffer.as_ref()[fields::PAYLOAD_TYPE])
+            .read_u16::<NetworkEndian>()
+            .unwrap();
+
+        match payload_type {
+            0x0806 => Ok(Type::Arp),
+            _ => Err(payload_type),
+        }
+    }
+
+    /// Returns an immutable view of the payload.
+    pub fn payload(&self) -> &[u8] {
+        &self.buffer.as_ref()[fields::PAYLOAD]
     }
 }
 
@@ -135,6 +164,7 @@ where
             .unwrap();
     }
 
+    /// Returns a mutable view of the payload.
     pub fn payload_mut(&mut self) -> &mut [u8] {
         &mut self.buffer.as_mut()[fields::PAYLOAD]
     }

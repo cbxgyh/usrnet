@@ -3,6 +3,7 @@ use std::io::Write;
 
 use byteorder::{
     NetworkEndian,
+    ReadBytesExt,
     WriteBytesExt,
 };
 
@@ -37,6 +38,7 @@ pub enum ProtoType {
     Ipv4 = 0x0800,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Arp {
     EthernetIpv4 {
         op: Op,
@@ -55,12 +57,40 @@ impl Arp {
         }
     }
 
+    /// Attempts to deserialize a buffer into an ARP packet.
+    pub fn deserialize(buffer: &[u8]) -> Result<Arp> {
+        if buffer.len() < 8 {
+            return Err(Error::Size);
+        }
+
+        let mut reader = std::io::Cursor::new(buffer);
+        let hw_type = reader.read_u16::<NetworkEndian>().unwrap();
+        let proto_type = reader.read_u16::<NetworkEndian>().unwrap();
+        let _ = reader.read_u8().unwrap(); // Skip address sizes.
+        let _ = reader.read_u8().unwrap();
+        let op = reader.read_u16::<NetworkEndian>().unwrap();
+
+        if hw_type != HwType::Ethernet as u16 || proto_type != ProtoType::Ipv4 as u16 || op == 0
+            || op > 2
+        {
+            return Err(Error::Encoding);
+        }
+
+        Ok(Arp::EthernetIpv4 {
+            op: if op == 1 { Op::Request } else { Op::Reply },
+            source_hw_addr: Mac::try_from(&buffer[8..14]).unwrap(),
+            source_proto_addr: Ipv4::try_from(&buffer[14..18]).unwrap(),
+            target_hw_addr: Mac::try_from(&buffer[18..24]).unwrap(),
+            target_proto_addr: Ipv4::try_from(&buffer[24..28]).unwrap(),
+        })
+    }
+
     /// Serializes the ARP packet into a buffer.
     ///
     /// You should ensure buffer has at least buffer_len() bytes to avoid errors.
     pub fn serialize(&self, buffer: &mut [u8]) -> Result<()> {
         if self.buffer_len() > buffer.len() {
-            return Err(Error::Buffer);
+            return Err(Error::Size);
         }
 
         match *self {

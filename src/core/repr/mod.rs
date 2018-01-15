@@ -19,8 +19,10 @@ pub use self::ipv4::Address as Ipv4;
 
 #[derive(Debug)]
 pub enum Error {
-    /// Indicates an error with a buffer.
-    Buffer,
+    /// Indicates a size error with a buffer.
+    Size,
+    /// Indicates a buffer with an invalid encoding.
+    Encoding,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
