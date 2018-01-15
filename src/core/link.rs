@@ -4,6 +4,8 @@ use std;
 pub enum Error {
     /// Indicates a generic IO error.
     IO(std::io::Error),
+    /// Indicates the link is busy.
+    Busy,
     /// Indicates a miscellaneous error with a message.
     Unknown(&'static str),
 }

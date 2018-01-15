@@ -15,6 +15,8 @@ pub enum Error {
     Link(LinkError),
     /// Indicates an error where a buffer was not large enough.
     Overflow,
+    /// Indicates a situation with an empty link.
+    Nothing,
 }
 
 impl From<LinkError> for Error {
@@ -98,6 +100,9 @@ impl<'a, T: Link> Device<'a> for Standard<T> {
 
     fn recv(&'a mut self) -> Result<Self::RxBuffer> {
         let buffer_len = self.link.recv(&mut self.rx_buffer)?;
+        if buffer_len == 0 {
+            return Err(Error::Nothing);
+        }
         Ok(&self.rx_buffer[..buffer_len])
     }
 

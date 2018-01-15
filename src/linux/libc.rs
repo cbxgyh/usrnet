@@ -43,3 +43,10 @@ pub union c_ifreq_ifru {
     pub ifr_flags: libc::c_short,
     pub ifr_mtu: libc::c_int,
 }
+
+pub fn errno() -> libc::c_int {
+    unsafe {
+        let errno = libc::__errno_location();
+        *errno
+    }
+}

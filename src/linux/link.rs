@@ -27,10 +27,9 @@ impl Tap {
         unsafe {
             let fd = libc::open(
                 "/dev/net/tun\0".as_ptr() as *const libc::c_char,
-                libc::O_RDWR,
+                libc::O_RDWR | libc::O_NONBLOCK,
             );
-
-            if fd == -1 {
+            if fd < 0 {
                 panic!("Opening TAP: {}.", std::io::Error::last_os_error());
             }
 
@@ -48,18 +47,40 @@ impl Tap {
 }
 
 impl Link for Tap {
-    fn send(&mut self, buf: &[u8]) -> Result<()> {
+    fn send(&mut self, buffer: &[u8]) -> Result<()> {
         unsafe {
-            let ptr = buf.as_ptr() as *const libc::c_void;
-            if libc::write(self.fd, ptr, buf.len()) == -1 {
-                return Err(Error::IO(std::io::Error::last_os_error()));
+            let bytes = libc::write(
+                self.fd,
+                buffer.as_ptr() as *const libc::c_void,
+                buffer.len(),
+            );
+
+            if bytes < 0 && _libc::errno() == libc::EAGAIN {
+                return Err(Error::Busy);
             }
-            Ok(())
+
+            if bytes < 0 {
+                Err(Error::IO(std::io::Error::last_os_error()))
+            } else {
+                Ok(())
+            }
         }
     }
 
-    fn recv(&mut self, _: &mut [u8]) -> Result<usize> {
-        unimplemented!();
+    fn recv(&mut self, buffer: &mut [u8]) -> Result<usize> {
+        unsafe {
+            let bytes = libc::read(self.fd, buffer.as_ptr() as *mut libc::c_void, buffer.len());
+
+            if bytes < 0 && _libc::errno() == libc::EAGAIN {
+                return Ok(0);
+            }
+
+            if bytes < 0 {
+                Err(Error::IO(std::io::Error::last_os_error()))
+            } else {
+                Ok(bytes as usize)
+            }
+        }
     }
 
     fn get_max_transmission_unit(&self) -> Result<usize> {
