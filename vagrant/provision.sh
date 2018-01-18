@@ -23,10 +23,4 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
 # Setup Rust.
 curl -sSL https://sh.rustup.rs -sSf | sh -s -- -y
 
-# Make tap.sh runs on startup...
-sudo cp /usrnet/vagrant/tap.sh /etc/init.d/tap.sh
-sudo chmod a+x /etc/init.d/tap.sh
-sudo chown root /etc/init.d/tap.sh
-sudo update-rc.d tap.sh defaults
-
 echo "Done!"

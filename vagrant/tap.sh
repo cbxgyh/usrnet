@@ -9,6 +9,10 @@
 # 2) Do not use the same MAC address for a usrnet device as the TAP. Otherwise
 #    the bridge swallows frames (or something like that...)
 
+if [ -d /sys/class/net/tap0 ]; then
+    exit 0
+fi
+
 ETH_IP=$(ip -4 addr show eth1 | grep inet | awk '{ print $2; }')
 
 echo "Creating bridge @ $ETH_IP..."

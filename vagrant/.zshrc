@@ -99,7 +99,4 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 export RUST_BACKTRACE=1
 
-if [ -f $HOME/provision ]; then
-  sudo rm $HOME/provision
-  $HOME/provision.sh
-fi
+/usrnet/vagrant/tap.sh
