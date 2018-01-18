@@ -5,7 +5,7 @@ use byteorder::{
     ReadBytesExt,
 };
 
-use core::repr::{
+use core::layers::{
     Error,
     Result,
 };

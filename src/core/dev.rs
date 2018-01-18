@@ -4,7 +4,7 @@ use core::link::{
     Error as LinkError,
     Link,
 };
-use core::repr::{
+use core::layers::{
     Ipv4,
     Mac,
 };

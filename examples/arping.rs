@@ -7,7 +7,7 @@ use usrnet::core::dev::{
     Device,
     Error as DevError,
 };
-use usrnet::core::repr::{
+use usrnet::core::layers::{
     Arp,
     ArpOp,
     EthernetFrame,

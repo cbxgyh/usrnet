@@ -7,7 +7,7 @@ use byteorder::{
     WriteBytesExt,
 };
 
-use core::repr::{
+use core::layers::{
     Error,
     Result,
 };
