@@ -20,8 +20,8 @@ pub use self::ipv4::Address as Ipv4;
 #[derive(Debug)]
 pub enum Error {
     /// Indicates a size error with a buffer.
-    Size,
-    /// Indicates a buffer with an invalid encoding.
+    Buffer,
+    /// Indicates an encoding error.
     Encoding,
 }
 

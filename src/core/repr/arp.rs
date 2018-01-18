@@ -60,7 +60,7 @@ impl Arp {
     /// Attempts to deserialize a buffer into an ARP packet.
     pub fn deserialize(buffer: &[u8]) -> Result<Arp> {
         if buffer.len() < 8 {
-            return Err(Error::Size);
+            return Err(Error::Buffer);
         }
 
         let mut reader = std::io::Cursor::new(buffer);
@@ -90,7 +90,7 @@ impl Arp {
     /// You should ensure buffer has at least buffer_len() bytes to avoid errors.
     pub fn serialize(&self, buffer: &mut [u8]) -> Result<()> {
         if self.buffer_len() > buffer.len() {
-            return Err(Error::Size);
+            return Err(Error::Buffer);
         }
 
         match *self {

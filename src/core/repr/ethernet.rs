@@ -27,7 +27,7 @@ impl Address {
     /// Creates a MAC address from a network byte order slice.
     pub fn try_from(addr: &[u8]) -> Result<Address> {
         if addr.len() != 6 {
-            return Err(Error::Size);
+            return Err(Error::Buffer);
         }
 
         let mut _addr: [u8; 6] = [0; 6];
@@ -91,7 +91,7 @@ mod fields {
     pub const PAYLOAD: std::ops::RangeFrom<usize> = 14..;
 }
 
-/// Ethernet frame with an owned byte buffer.
+/// Ethernet frame represented as a byte buffer.
 pub struct Frame<T>
 where
     T: AsRef<[u8]>,
@@ -105,12 +105,12 @@ where
 {
     pub const MIN_BUFFER_SIZE: usize = 14;
 
-    /// Creates an Ethernet frame by taking ownership of the buffer.
+    /// Wraps and represents the buffer as an Ethernet frame.
     ///
     /// You should ensure the buffer contains at least buffer_len() bytes to avoid errors.
     pub fn new(buffer: T) -> Result<Frame<T>> {
         if buffer.as_ref().len() < Self::MIN_BUFFER_SIZE {
-            return Err(Error::Size);
+            return Err(Error::Buffer);
         }
 
         Ok(Frame { buffer })
