@@ -4,18 +4,21 @@ use usrnet::core::dev::{
 };
 use usrnet::core::link::Link;
 use usrnet::core::layers::{
-    Ipv4,
-    Mac,
+    EthernetAddress,
+    Ipv4Address,
 };
 use usrnet::linux::link::Tap;
+
+#[allow(dead_code)]
+pub type Dev = Standard<Tap>;
 
 pub fn default_dev() -> Standard<Tap> {
     let tap = Tap::new("tap0");
     let mtu = tap.get_max_transmission_unit().unwrap();
     let dev = Standard::new(
         tap,
-        Ipv4::new([10, 0, 0, 103]),
-        Mac::new([0, 1, 2, 3, 4, 5]),
+        Ipv4Address::new([10, 0, 0, 103]),
+        EthernetAddress::new([0, 1, 2, 3, 4, 5]),
     ).unwrap();
 
     println!(

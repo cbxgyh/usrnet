@@ -9,8 +9,8 @@ use byteorder::{
 
 use core::layers::{
     Error,
-    Ipv4,
-    Mac,
+    EthernetAddress,
+    Ipv4Address,
     Result,
 };
 
@@ -20,8 +20,6 @@ use core::layers::{
 pub enum Op {
     Request = 0x0001,
     Reply = 0x0002,
-
-    #[doc(hidden)] __Nonexhaustive,
 }
 
 #[repr(u16)]
@@ -42,10 +40,10 @@ pub enum ProtoType {
 pub enum Arp {
     EthernetIpv4 {
         op: Op,
-        source_hw_addr: Mac,
-        source_proto_addr: Ipv4,
-        target_hw_addr: Mac,
-        target_proto_addr: Ipv4,
+        source_hw_addr: EthernetAddress,
+        source_proto_addr: Ipv4Address,
+        target_hw_addr: EthernetAddress,
+        target_proto_addr: Ipv4Address,
     },
 }
 
@@ -78,10 +76,10 @@ impl Arp {
 
         Ok(Arp::EthernetIpv4 {
             op: if op == 1 { Op::Request } else { Op::Reply },
-            source_hw_addr: Mac::try_from(&buffer[8..14]).unwrap(),
-            source_proto_addr: Ipv4::try_from(&buffer[14..18]).unwrap(),
-            target_hw_addr: Mac::try_from(&buffer[18..24]).unwrap(),
-            target_proto_addr: Ipv4::try_from(&buffer[24..28]).unwrap(),
+            source_hw_addr: EthernetAddress::try_from(&buffer[8..14]).unwrap(),
+            source_proto_addr: Ipv4Address::try_from(&buffer[14..18]).unwrap(),
+            target_hw_addr: EthernetAddress::try_from(&buffer[18..24]).unwrap(),
+            target_proto_addr: Ipv4Address::try_from(&buffer[24..28]).unwrap(),
         })
     }
 

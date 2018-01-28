@@ -8,12 +8,12 @@ use usrnet::core::dev::{
     Error as DevError,
 };
 use usrnet::core::layers::{
+    ethernet_types,
     Arp,
     ArpOp,
+    EthernetAddress,
     EthernetFrame,
-    EthernetType,
-    Ipv4,
-    Mac,
+    Ipv4Address,
 };
 
 /// Sends an ARP request for an IPv4 address.
@@ -38,7 +38,11 @@ fn main() {
         )
         .get_matches();
 
-    let ip = matches.value_of("ip").unwrap().parse::<Ipv4>().unwrap();
+    let ip = matches
+        .value_of("ip")
+        .unwrap()
+        .parse::<Ipv4Address>()
+        .unwrap();
     let timeout = std::time::Duration::from_millis(
         matches.value_of("timeout").unwrap().parse::<u64>().unwrap(),
     );
@@ -53,8 +57,8 @@ fn main() {
     let mut recv_arp_loop = || loop {
         std::thread::sleep(std::time::Duration::from_millis(1));
         let now = std::time::Instant::now();
-        if let Some(mac) = recv_arp(&mut dev, ip.clone()) {
-            println!("{} has MAC {}!", ip, mac);
+        if let Some(eth_addr) = recv_arp(&mut dev, ip.clone()) {
+            println!("{} has MAC {}!", ip, eth_addr);
             return 0;
         } else if now.duration_since(since) > timeout {
             eprintln!("Timeout!");
@@ -65,12 +69,12 @@ fn main() {
     std::process::exit(recv_arp_loop());
 }
 
-fn send_arp<'a, T: Device<'a>>(dev: &'a mut T, ip: Ipv4) {
+fn send_arp<'a, T: Device<'a>>(dev: &'a mut T, ip: Ipv4Address) {
     let arp = Arp::EthernetIpv4 {
         op: ArpOp::Request,
         source_hw_addr: dev.get_ethernet_addr(),
         source_proto_addr: dev.get_ipv4_addr(),
-        target_hw_addr: Mac::BROADCAST,
+        target_hw_addr: EthernetAddress::BROADCAST,
         target_proto_addr: ip,
     };
 
@@ -78,14 +82,14 @@ fn send_arp<'a, T: Device<'a>>(dev: &'a mut T, ip: Ipv4) {
     let buffer_len = EthernetFrame::<&[u8]>::buffer_len(arp.buffer_len());
     let mut buffer = dev.send(buffer_len).unwrap();
 
-    let mut eth_frame = EthernetFrame::new(buffer.as_mut()).unwrap();
-    eth_frame.set_dst_addr(Mac::BROADCAST);
+    let mut eth_frame = EthernetFrame::try_from(buffer.as_mut()).unwrap();
+    eth_frame.set_dst_addr(EthernetAddress::BROADCAST);
     eth_frame.set_src_addr(dev_eth_addr);
-    eth_frame.set_payload_type(EthernetType::Arp);
+    eth_frame.set_payload_type(ethernet_types::ARP as u16);
     arp.serialize(eth_frame.payload_mut()).unwrap();
 }
 
-fn recv_arp<'a, T: Device<'a>>(dev: &'a mut T, ip: Ipv4) -> Option<Mac> {
+fn recv_arp<'a, T: Device<'a>>(dev: &'a mut T, ip: Ipv4Address) -> Option<EthernetAddress> {
     let eth_addr = dev.get_ethernet_addr();
     let ip_addr = dev.get_ipv4_addr();
     let maybe_buffer = dev.recv();
@@ -99,10 +103,9 @@ fn recv_arp<'a, T: Device<'a>>(dev: &'a mut T, ip: Ipv4) -> Option<Mac> {
     }
 
     let buffer = maybe_buffer.unwrap();
-    let eth_frame = EthernetFrame::new(buffer.as_ref()).unwrap();
-    let payload_type = eth_frame.get_payload_type();
+    let eth_frame = EthernetFrame::try_from(buffer.as_ref()).unwrap();
 
-    if payload_type.is_err() || payload_type.unwrap() != EthernetType::Arp {
+    if eth_frame.get_payload_type() != (ethernet_types::ARP as u16) {
         return None; // Ignore non ARP packets...
     }
 

@@ -5,8 +5,8 @@ use core::link::{
     Link,
 };
 use core::layers::{
-    Ipv4,
-    Mac,
+    EthernetAddress,
+    Ipv4Address,
 };
 
 #[derive(Debug)]
@@ -37,7 +37,7 @@ pub trait Device<'a> {
 
     type RxBuffer: AsRef<[u8]>;
 
-    /// Returns a TxBuffer with at least buffer_len bytes.
+    /// Returns a zero'd TxBuffer with at least buffer_len bytes.
     ///
     /// Callers can write to the TxBuffer. Once dropped, the TxBuffer should
     /// write to the underlying link. Implementations must support a single
@@ -52,10 +52,10 @@ pub trait Device<'a> {
     fn recv(&'a mut self) -> Result<Self::RxBuffer>;
 
     /// Returns the Ipv4 address associated with the device.
-    fn get_ipv4_addr(&self) -> Ipv4;
+    fn get_ipv4_addr(&self) -> Ipv4Address;
 
     /// Returns the ethernet address associated with the device.
-    fn get_ethernet_addr(&self) -> Mac;
+    fn get_ethernet_addr(&self) -> EthernetAddress;
 }
 
 /// A Device which reuses preallocated Tx/Rx buffers.
@@ -63,13 +63,13 @@ pub struct Standard<T: Link> {
     link: T,
     tx_buffer: std::vec::Vec<u8>,
     rx_buffer: std::vec::Vec<u8>,
-    ipv4_addr: Ipv4,
-    eth_addr: Mac,
+    ipv4_addr: Ipv4Address,
+    eth_addr: EthernetAddress,
 }
 
 impl<T: Link> Standard<T> {
     /// Creates a Standard device.
-    pub fn new(link: T, ipv4_addr: Ipv4, eth_addr: Mac) -> Result<Standard<T>> {
+    pub fn new(link: T, ipv4_addr: Ipv4Address, eth_addr: EthernetAddress) -> Result<Standard<T>> {
         let mtu = link.get_max_transmission_unit()?;
 
         Ok(Standard {
@@ -92,9 +92,14 @@ impl<'a, T: Link> Device<'a> for Standard<T> {
             return Err(Error::Overflow);
         }
 
+        let buffer = &mut self.tx_buffer[..buffer_len];
+        for b in buffer.iter_mut() {
+            *b = 0;
+        }
+
         Ok(TxBuffer {
             link: &mut self.link,
-            tx_buffer: &mut self.tx_buffer[..buffer_len],
+            tx_buffer: buffer,
         })
     }
 
@@ -106,11 +111,11 @@ impl<'a, T: Link> Device<'a> for Standard<T> {
         Ok(&self.rx_buffer[..buffer_len])
     }
 
-    fn get_ipv4_addr(&self) -> Ipv4 {
+    fn get_ipv4_addr(&self) -> Ipv4Address {
         self.ipv4_addr
     }
 
-    fn get_ethernet_addr(&self) -> Mac {
+    fn get_ethernet_addr(&self) -> EthernetAddress {
         self.eth_addr
     }
 }

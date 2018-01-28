@@ -73,10 +73,9 @@ impl std::str::FromStr for Address {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// [https://en.wikipedia.org/wiki/EtherType](https://en.wikipedia.org/wiki/EtherType)
-pub enum Type {
-    Arp = 0x0806,
+pub mod types {
+    pub const ARP: u16 = 0x806;
 }
 
 mod fields {
@@ -107,8 +106,10 @@ where
 
     /// Wraps and represents the buffer as an Ethernet frame.
     ///
-    /// You should ensure the buffer contains at least buffer_len() bytes to avoid errors.
-    pub fn new(buffer: T) -> Result<Frame<T>> {
+    /// # Errors
+    ///
+    /// Causes an error if the buffer is less than MIN_BUFFER_SIZE bytes long.
+    pub fn try_from(buffer: T) -> Result<Frame<T>> {
         if buffer.as_ref().len() < Self::MIN_BUFFER_SIZE {
             return Err(Error::Buffer);
         }
@@ -122,15 +123,10 @@ where
     }
 
     /// Returns the payload type of the frame or an error containing the unknown code.
-    pub fn get_payload_type(&self) -> std::result::Result<Type, u16> {
-        let payload_type = (&self.buffer.as_ref()[fields::PAYLOAD_TYPE])
+    pub fn get_payload_type(&self) -> u16 {
+        (&self.buffer.as_ref()[fields::PAYLOAD_TYPE])
             .read_u16::<NetworkEndian>()
-            .unwrap();
-
-        match payload_type {
-            0x0806 => Ok(Type::Arp),
-            _ => Err(payload_type),
-        }
+            .unwrap()
     }
 
     /// Returns an immutable view of the payload.
@@ -158,9 +154,9 @@ where
     }
 
     /// Sets the payload type.
-    pub fn set_payload_type(&mut self, payload_type: Type) {
+    pub fn set_payload_type(&mut self, payload_type: u16) {
         (&mut self.buffer.as_mut()[fields::PAYLOAD_TYPE])
-            .write_u16::<NetworkEndian>(payload_type as u16)
+            .write_u16::<NetworkEndian>(payload_type)
             .unwrap();
     }
 
