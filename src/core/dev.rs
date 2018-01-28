@@ -143,3 +143,118 @@ impl<'a> Drop for TxBuffer<'a> {
         self.link.send(self.tx_buffer).unwrap();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use core::link::MockLink;
+    use super::*;
+
+    fn new_test_dev(link: MockLink) -> Standard<MockLink> {
+        Standard::new(
+            link,
+            Ipv4Address::new([10, 0, 0, 1]),
+            EthernetAddress::new([0, 1, 2, 3, 4, 5]),
+        ).unwrap()
+    }
+
+    #[test]
+    fn test_send() {
+        let mut link = MockLink::new();
+
+        let mtu = link.method_get_max_transmission_unit().set_result(Ok(1500));
+        link.set_get_max_transmission_unit(mtu);
+
+        let send = link.method_send()
+            .first_call()
+            .set_result(Ok(()))
+            .second_call()
+            .set_result(Ok(()));
+        link.set_send(send);
+
+        let mut dev = new_test_dev(link);
+
+        {
+            let mut buffer = dev.send(1).unwrap();
+            buffer.as_mut()[0] = 9;
+        }
+
+        {
+            // Ensure buffer is 0'd on subsequent sends...
+            let buffer = dev.send(2).unwrap();
+            assert_eq!(buffer.as_ref(), [0, 0]);
+        }
+    }
+
+    #[test]
+    fn test_send_overflow() {
+        let mut link = MockLink::new();
+
+        let mtu = link.method_get_max_transmission_unit()
+            .return_result_of(|| Ok(100));
+        link.set_get_max_transmission_unit(mtu);
+
+        let mut dev = new_test_dev(link);
+
+        assert!(match dev.send(101) {
+            Err(Error::Overflow) => true,
+            _ => false,
+        });
+    }
+
+    #[test]
+    fn test_recv() {
+        let mut link = MockLink::new();
+
+        let mtu = link.method_get_max_transmission_unit()
+            .return_result_of(|| Ok(1500));
+        link.set_get_max_transmission_unit(mtu);
+
+        let recv = link.method_recv().set_result(Ok(100));
+        link.set_recv(recv);
+
+        let mut dev = new_test_dev(link);
+
+        assert!(match dev.recv() {
+            Ok(ref buffer) => buffer.len() == 100,
+            _ => false,
+        });
+    }
+
+    #[test]
+    fn test_recv_link_errors() {
+        let mut link = MockLink::new();
+
+        let mtu = link.method_get_max_transmission_unit()
+            .return_result_of(|| Ok(1500));
+        link.set_get_max_transmission_unit(mtu);
+
+        let recv = link.method_recv().set_result(Err(LinkError::Busy));
+        link.set_recv(recv);
+
+        let mut dev = new_test_dev(link);
+
+        assert!(match dev.recv() {
+            Err(Error::Link(LinkError::Busy)) => true,
+            _ => false,
+        });
+    }
+
+    #[test]
+    fn test_recv_nothing() {
+        let mut link = MockLink::new();
+
+        let mtu = link.method_get_max_transmission_unit()
+            .return_result_of(|| Ok(1500));
+        link.set_get_max_transmission_unit(mtu);
+
+        let recv = link.method_recv().set_result(Ok(0));
+        link.set_recv(recv);
+
+        let mut dev = new_test_dev(link);
+
+        assert!(match dev.recv() {
+            Err(Error::Nothing) => true,
+            _ => false,
+        });
+    }
+}

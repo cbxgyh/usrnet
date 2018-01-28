@@ -1,5 +1,7 @@
+#![feature(proc_macro)]
 extern crate byteorder;
 extern crate libc;
+extern crate mock_derive;
 
 pub mod core;
 

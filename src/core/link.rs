@@ -1,13 +1,13 @@
 use std;
 
+use mock_derive::mock;
+
 #[derive(Debug)]
 pub enum Error {
     /// Indicates a generic IO error.
     IO(std::io::Error),
     /// Indicates the link is busy.
     Busy,
-    /// Indicates a miscellaneous error with a message.
-    Unknown(&'static str),
 }
 
 impl From<std::io::Error> for Error {
@@ -19,6 +19,7 @@ impl From<std::io::Error> for Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// A low level interface for sending frames across a link.
+#[mock]
 pub trait Link {
     /// Sends a frame across the link.
     fn send(&mut self, buffer: &[u8]) -> Result<()>;
