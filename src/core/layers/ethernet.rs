@@ -75,6 +75,8 @@ impl std::str::FromStr for Address {
 
 /// [https://en.wikipedia.org/wiki/EtherType](https://en.wikipedia.org/wiki/EtherType)
 pub mod types {
+    pub const IPV4: u16 = 0x800;
+
     pub const ARP: u16 = 0x806;
 }
 

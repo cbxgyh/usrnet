@@ -14,4 +14,7 @@ clap = "2.29"
 name = "arping"
 
 [[example]]
+name = "ping"
+
+[[example]]
 name = "tap_up"
