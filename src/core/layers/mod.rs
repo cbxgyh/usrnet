@@ -33,6 +33,8 @@ pub enum Error {
     Buffer,
     /// Indicates an encoding error.
     Encoding,
+    /// Indicates a checksum error.
+    Checksum,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

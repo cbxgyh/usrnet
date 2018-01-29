@@ -93,6 +93,7 @@ mod fields {
 }
 
 /// Ethernet frame represented as a byte buffer.
+#[derive(Debug)]
 pub struct Frame<T>
 where
     T: AsRef<[u8]>,
@@ -125,7 +126,7 @@ where
     }
 
     /// Returns the payload type of the frame or an error containing the unknown code.
-    pub fn get_payload_type(&self) -> u16 {
+    pub fn payload_type(&self) -> u16 {
         (&self.buffer.as_ref()[fields::PAYLOAD_TYPE])
             .read_u16::<NetworkEndian>()
             .unwrap()

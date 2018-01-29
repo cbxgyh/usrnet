@@ -13,24 +13,44 @@ use core::layers::{
 /// Safe representation of an ICMP header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Repr {
+    EchoReply { id: u16, seq: u16 },
     EchoRequest { id: u16, seq: u16 },
 }
 
 impl Repr {
-    /// Serializes the representation into an ICMP packet.
-    pub fn serialize<T>(&self, packet: &mut Packet<T>)
-    where
-        T: AsRef<[u8]> + AsMut<[u8]>,
-    {
+    /// Attempts to deserialize a buffer into an ICMP packet.
+    pub fn deserialize<T: AsRef<[u8]>>(packet: &Packet<T>) -> Result<Repr> {
+        let header = packet.header();
+        let id = || (&header[0..2]).read_u16::<NetworkEndian>().unwrap();
+        let seq = || (&header[2..4]).read_u16::<NetworkEndian>().unwrap();
+
+        match (packet.type_of(), packet.code()) {
+            (0, 0) => Ok(Repr::EchoReply {
+                id: id(),
+                seq: seq(),
+            }),
+            (8, 0) => Ok(Repr::EchoRequest {
+                id: id(),
+                seq: seq(),
+            }),
+            _ => Err(Error::Encoding),
+        }
+    }
+
+    /// Serializes the ICMP packet into a buffer.
+    pub fn serialize<T: AsRef<[u8]> + AsMut<[u8]>>(&self, packet: &mut Packet<T>) {
+        let mut echo_reply_or_request = |type_, id, seq| {
+            packet.set_type(type_);
+            packet.set_code(0);
+            let mut header: [u8; 4] = [0; 4];
+            (&mut header[0..2]).write_u16::<NetworkEndian>(id).unwrap();
+            (&mut header[2..4]).write_u16::<NetworkEndian>(seq).unwrap();
+            packet.set_header(header);
+        };
+
         match *self {
-            Repr::EchoRequest { id, seq } => {
-                packet.set_type(8);
-                packet.set_code(0);
-                let mut header: [u8; 4] = [0; 4];
-                (&mut header[0..2]).write_u16::<NetworkEndian>(id).unwrap();
-                (&mut header[2..4]).write_u16::<NetworkEndian>(seq).unwrap();
-                packet.set_header(header);
-            }
+            Repr::EchoReply { id, seq } => echo_reply_or_request(0, id, seq),
+            Repr::EchoRequest { id, seq } => echo_reply_or_request(8, id, seq),
         }
     }
 }
@@ -51,6 +71,7 @@ mod fields {
 }
 
 /// ICMP packet represented as a byte buffer.
+#[derive(Debug)]
 pub struct Packet<T: AsRef<[u8]>> {
     buffer: T,
 }
@@ -63,13 +84,24 @@ impl<T: AsRef<[u8]>> Packet<T> {
     ///
     /// # Errors
     ///
-    /// Causes an error if the buffer is not Self::BUFFER_LEN bytes long.
+    /// Causes an error if the buffer is less than Self::MIN_BUFFER_LEN bytes
+    /// long. You should ensure the packet encoding is valid via is_encoding_ok()
+    /// if parsing a packet from the wire. Otherwise member functions may panic.
     pub fn try_from(buffer: T) -> Result<Packet<T>> {
         if buffer.as_ref().len() < Self::MIN_BUFFER_LEN {
             return Err(Error::Buffer);
         }
 
         Ok(Packet { buffer })
+    }
+
+    /// Checks if the packet encoding is valid.
+    pub fn is_encoding_ok(&self) -> Result<()> {
+        if self.gen_checksum() != 0 {
+            Err(Error::Checksum)
+        } else {
+            Ok(())
+        }
     }
 
     /// Calculates a checksum for the entire packet.
@@ -151,12 +183,20 @@ mod tests {
     }
 
     #[test]
-    fn test_packet_getters() {
+    fn test_packet_with_invalid_checksum() {
         let buffer: [u8; 9] = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09];
         let packet = Packet::try_from(&buffer[..]).unwrap();
+        assert_matches!(packet.is_encoding_ok(), Err(Error::Checksum));
+    }
+
+    #[test]
+    fn test_packet_getters() {
+        let buffer: [u8; 9] = [0x01, 0x02, 0xE9, 0xEf, 0x05, 0x06, 0x07, 0x08, 0x09];
+        let packet = Packet::try_from(&buffer[..]).unwrap();
+        assert_matches!(packet.is_encoding_ok(), Ok(_));
         assert_eq!(packet.type_of(), 1);
         assert_eq!(packet.code(), 2);
-        assert_eq!(packet.checksum(), 772);
+        assert_eq!(packet.checksum(), 59887);
         assert_eq!(packet.header(), [0x05, 0x06, 0x07, 0x08]);
         assert_eq!(packet.payload(), [0x09]);
     }

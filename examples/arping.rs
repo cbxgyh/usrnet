@@ -25,7 +25,7 @@ fn main() {
                 .long("ip")
                 .value_name("IP")
                 .help("IP address to request a MAC address for")
-                .default_value("10.0.0.102")
+                .default_value("10.0.0.1")
                 .takes_value(true),
         )
         .arg(
@@ -105,7 +105,7 @@ fn recv_arp<'a, T: Device<'a>>(dev: &'a mut T, ip: Ipv4Address) -> Option<Ethern
     let buffer = maybe_buffer.unwrap();
     let eth_frame = EthernetFrame::try_from(buffer.as_ref()).unwrap();
 
-    if eth_frame.get_payload_type() != (ethernet_types::ARP as u16) {
+    if eth_frame.payload_type() != (ethernet_types::ARP as u16) {
         return None; // Ignore non ARP packets...
     }
 

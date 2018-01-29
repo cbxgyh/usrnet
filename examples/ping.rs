@@ -3,7 +3,10 @@ extern crate usrnet;
 
 mod env;
 
-use usrnet::core::dev::Device;
+use usrnet::core::dev::{
+    Device,
+    Error as DevError,
+};
 use usrnet::core::layers::{
     ethernet_types,
     EthernetAddress,
@@ -28,7 +31,17 @@ fn main() {
         "Ping for {} sent. Use tshark or tcpdump to observe.",
         ip_addr
     );
-    std::thread::sleep(std::time::Duration::from_secs(1));
+    loop {
+        match recv_eth_frame(&mut dev) {
+            Some(_) => {
+                println!("Got reply from {}!", ip_addr);
+                break;
+            }
+            _ => {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+        }
+    }
 }
 
 fn send_icmp_packet<F>(dev: &mut env::Dev, ip_addr: Ipv4Address, f: F)
@@ -90,4 +103,36 @@ where
     let mut ethernet_frame = EthernetFrame::try_from(buffer.as_mut()).unwrap();
     ethernet_frame.set_src_addr(src_hw_addr);
     f(&mut ethernet_frame);
+}
+
+fn recv_eth_frame(dev: &mut env::Dev) -> Option<Icmpv4Repr> {
+    loop {
+        match dev.recv() {
+            Err(DevError::Nothing) => {
+                return None;
+            }
+            Ok(buffer) => {
+                let ethernet_frame = EthernetFrame::try_from(buffer).unwrap();
+                if ethernet_frame.payload_type() != ethernet_types::IPV4 {
+                    continue;
+                }
+                let ip_packet = Ipv4Packet::try_from(ethernet_frame.payload()).unwrap();
+                if ip_packet.is_encoding_ok().is_err() || ip_packet.protocol() != ipv4_types::ICMP {
+                    continue;
+                }
+                let icmp_packet = Icmpv4Packet::try_from(ip_packet.payload()).unwrap();
+                if icmp_packet.is_encoding_ok().is_err() {
+                    continue;
+                }
+                let icmp_repr = Icmpv4Repr::deserialize(&icmp_packet);
+                return match icmp_repr {
+                    Ok(icmp @ Icmpv4Repr::EchoReply { .. }) => Some(icmp),
+                    _ => None,
+                };
+            }
+            _ => {
+                continue;
+            }
+        }
+    }
 }

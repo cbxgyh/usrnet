@@ -107,6 +107,7 @@ mod fields {
 }
 
 /// IPv4 packet represented as a byte buffer.
+#[derive(Debug)]
 pub struct Packet<T>
 where
     T: AsRef<[u8]>,
@@ -137,13 +138,15 @@ where
 
     /// Checks if the packet encoding is valid.
     pub fn is_encoding_ok(&self) -> Result<()> {
-        if self.ip_version() != 4 || (self.header_len() * 4) as usize > self.buffer.as_ref().len()
-            || self.packet_len() as usize != self.buffer.as_ref().len()
+        if self.ip_version() != 4 || ((self.header_len() * 4) as usize) > self.buffer.as_ref().len()
+            || (self.packet_len() as usize) > self.buffer.as_ref().len()
         {
             return Err(Error::Encoding);
         }
 
-        // TODO: Validate checksum.
+        if self.gen_header_checksum() != 0 {
+            return Err(Error::Checksum);
+        }
 
         Ok(())
     }
@@ -155,7 +158,8 @@ where
 
     /// Calculates a checksum for the entire header.
     pub fn gen_header_checksum(&self) -> u16 {
-        internet_checksum(self.buffer.as_ref())
+        let header_len = (self.header_len() * 4) as usize;
+        internet_checksum(&self.buffer.as_ref()[..header_len])
     }
 
     pub fn ip_version(&self) -> u8 {
@@ -315,49 +319,50 @@ mod tests {
     #[test]
     fn test_packet_with_buffer_less_than_min_header() {
         let buffer: [u8; 19] = [0; 19];
-        assert!(match Packet::try_from(&buffer[..]) {
-            Err(Error::Buffer) => true,
-            _ => false,
-        });
+        let packet = Packet::try_from(&buffer[..]);
+        assert_matches!(packet, Err(Error::Buffer));
     }
 
     #[test]
     fn test_packet_with_header_len_greater_than_buffer_len() {
         let buffer: [u8; 20] = [
-            0x0F, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x4F, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
-        assert!(
-            match Packet::try_from(&buffer[..]).unwrap().is_encoding_ok() {
-                Err(Error::Encoding) => true,
-                _ => false,
-            }
-        );
+        let packet = Packet::try_from(&buffer[..]).unwrap();
+        assert_matches!(packet.is_encoding_ok(), Err(Error::Encoding));
     }
 
     #[test]
-    fn test_packet_with_packet_len_not_equal_to_buffer_len() {
+    fn test_packet_with_packet_len_greater_than_buffer_len() {
         let buffer: [u8; 20] = [
-            0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00,
+            0x45, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
-        assert!(
-            match Packet::try_from(&buffer[..]).unwrap().is_encoding_ok() {
-                Err(Error::Encoding) => true,
-                _ => false,
-            }
-        );
+        let packet = Packet::try_from(&buffer[..]).unwrap();
+        assert_matches!(packet.is_encoding_ok(), Err(Error::Encoding));
+    }
+
+    #[test]
+    fn test_packet_with_invalid_checksum() {
+        let buffer: [u8; 20] = [
+            0x45, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+        let packet = Packet::try_from(&buffer[..]).unwrap();
+        assert_matches!(packet.is_encoding_ok(), Err(Error::Checksum));
     }
 
     #[test]
     fn test_packet_getters() {
         let buffer: [u8; 40] = [
-            0x46, 0x11, 0x00, 0x28, 0xFF, 0xFF, 0xE1, 0x01, 0x02, 0x03, 0x00, 0x04, 0x01, 0x02,
+            0x46, 0x11, 0x00, 0x28, 0xFF, 0xFF, 0xE1, 0x01, 0x02, 0x03, 0xC6, 0xAD, 0x01, 0x02,
             0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
 
         let packet = Packet::try_from(&buffer[..]).unwrap();
+        assert_matches!(packet.is_encoding_ok(), Ok(_));
         assert_eq!(4, packet.ip_version());
         assert_eq!(6, packet.header_len());
         assert_eq!(4, packet.dscp());
@@ -368,7 +373,7 @@ mod tests {
         assert_eq!(257, packet.fragment_offset());
         assert_eq!(2, packet.ttl());
         assert_eq!(3, packet.protocol());
-        assert_eq!(4, packet.header_checksum());
+        assert_eq!(50861, packet.header_checksum());
         assert_eq!(Address([1, 2, 3, 4]), packet.src_addr());
         assert_eq!(Address([5, 6, 7, 8]), packet.dst_addr());
         assert_eq!(16, packet.payload().len());
