@@ -214,10 +214,7 @@ mod tests {
 
         let mut dev = new_test_dev(link);
 
-        assert!(match dev.recv() {
-            Ok(ref buffer) => buffer.len() == 100,
-            _ => false,
-        });
+        assert_eq!(dev.recv().unwrap().len(), 100);
     }
 
     #[test]
@@ -233,10 +230,7 @@ mod tests {
 
         let mut dev = new_test_dev(link);
 
-        assert!(match dev.recv() {
-            Err(Error::Link(LinkError::Busy)) => true,
-            _ => false,
-        });
+        assert_matches!(dev.recv(), Err(Error::Link(LinkError::Busy)));
     }
 
     #[test]
@@ -252,9 +246,6 @@ mod tests {
 
         let mut dev = new_test_dev(link);
 
-        assert!(match dev.recv() {
-            Err(Error::Nothing) => true,
-            _ => false,
-        });
+        assert_matches!(dev.recv(), Err(Error::Nothing));
     }
 }
