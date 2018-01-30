@@ -14,7 +14,7 @@ pub enum Error {
     /// Indicates a Link layer error.
     Link(LinkError),
     /// Indicates an error where a buffer was not large enough.
-    Overflow,
+    Buffer,
     /// Indicates a situation with an empty link.
     Nothing,
 }
@@ -62,42 +62,70 @@ pub trait Device {
     fn get_ethernet_addr(&self) -> EthernetAddress;
 }
 
-/// A Device which reuses preallocated Tx/Rx buffers.
-pub struct Standard<T: Link> {
+/// Device which reuses preallocated send/recv buffers.
+pub struct Standard<T, U>
+where
+    T: Link,
+    U: AsRef<[u8]> + AsMut<[u8]>,
+{
     link: T,
-    buffer: std::vec::Vec<u8>,
+    buffer: U,
     ipv4_addr: Ipv4Address,
     eth_addr: EthernetAddress,
+    max_transmission_unit: usize,
 }
 
-impl<T: Link> Standard<T> {
+impl<T, U> Standard<T, U>
+where
+    T: Link,
+    U: AsRef<[u8]> + AsMut<[u8]>,
+{
     /// Creates a Standard device.
-    pub fn new(link: T, ipv4_addr: Ipv4Address, eth_addr: EthernetAddress) -> Result<Standard<T>> {
-        let mtu = link.get_max_transmission_unit()?;
+    ///
+    /// # Errors
+    ///
+    /// Causes an error if the buffer length is not at least twice the link
+    /// MTU or the link is down.
+    pub fn try_new(
+        link: T,
+        buffer: U,
+        ipv4_addr: Ipv4Address,
+        eth_addr: EthernetAddress,
+    ) -> Result<Standard<T, U>> {
+        let max_transmission_unit = link.get_max_transmission_unit()?;
+
+        if buffer.as_ref().len() < max_transmission_unit * 2 {
+            return Err(Error::Buffer);
+        }
 
         Ok(Standard {
-            link: link,
-            buffer: vec![0; mtu * 2],
-            ipv4_addr: ipv4_addr,
-            eth_addr: eth_addr,
+            link,
+            buffer,
+            ipv4_addr,
+            eth_addr,
+            max_transmission_unit,
         })
     }
 }
 
-impl<T: Link> Device for Standard<T> {
+impl<T, U> Device for Standard<T, U>
+where
+    T: Link,
+    U: AsRef<[u8]> + AsMut<[u8]>,
+{
     fn send<F, R>(&mut self, buffer_len: usize, f: F) -> Result<R>
     where
         F: FnOnce(&mut [u8]) -> R,
     {
-        if buffer_len > self.buffer.len() / 2 {
-            return Err(Error::Overflow);
+        if buffer_len > self.max_transmission_unit {
+            return Err(Error::Buffer);
         }
 
         for i in 0..buffer_len {
-            self.buffer[i] = 0;
+            self.buffer.as_mut()[i] = 0;
         }
 
-        let send_buffer = &mut self.buffer[..buffer_len];
+        let send_buffer = &mut self.buffer.as_mut()[..buffer_len];
 
         let res = f(send_buffer);
 
@@ -110,8 +138,7 @@ impl<T: Link> Device for Standard<T> {
     where
         F: FnOnce(&[u8]) -> R,
     {
-        let send_buffer_len = self.buffer.len() / 2;
-        let recv_buffer = &mut self.buffer[send_buffer_len..];
+        let recv_buffer = &mut self.buffer.as_mut()[self.max_transmission_unit..];
 
         match self.link.recv(recv_buffer) {
             Ok(buffer_len) => {
@@ -139,9 +166,10 @@ mod tests {
     use core::link::MockLink;
     use super::*;
 
-    fn new_test_dev(link: MockLink) -> Standard<MockLink> {
-        Standard::new(
+    fn new_test_dev(link: MockLink) -> Standard<MockLink, std::vec::Vec<u8>> {
+        Standard::try_new(
             link,
+            vec![0; 10240],
             Ipv4Address::new([10, 0, 0, 1]),
             EthernetAddress::new([0, 1, 2, 3, 4, 5]),
         ).unwrap()
@@ -192,7 +220,7 @@ mod tests {
 
         let mut dev = new_test_dev(link);
 
-        assert_matches!(dev.send(101, |_| {}), Err(Error::Overflow));
+        assert_matches!(dev.send(101, |_| {}), Err(Error::Buffer));
     }
 
     #[test]
