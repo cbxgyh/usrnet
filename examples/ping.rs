@@ -3,10 +3,7 @@ extern crate usrnet;
 
 mod env;
 
-use usrnet::core::dev::{
-    Device,
-    Error as DevError,
-};
+use usrnet::core::dev::Device;
 use usrnet::core::layers::{
     ethernet_types,
     EthernetAddress,
@@ -99,40 +96,37 @@ where
 {
     let src_hw_addr = dev.get_ethernet_addr();
     let frame_len = EthernetFrame::<&[u8]>::buffer_len(buffer_len);
-    let mut buffer = dev.send(frame_len).unwrap();
-    let mut ethernet_frame = EthernetFrame::try_from(buffer.as_mut()).unwrap();
-    ethernet_frame.set_src_addr(src_hw_addr);
-    f(&mut ethernet_frame);
+    dev.send(frame_len, |buffer| {
+        let mut ethernet_frame = EthernetFrame::try_from(buffer).unwrap();
+        ethernet_frame.set_src_addr(src_hw_addr);
+        f(&mut ethernet_frame);
+    }).unwrap();
 }
 
 fn recv_eth_frame(dev: &mut env::Dev) -> Option<Icmpv4Repr> {
     loop {
-        match dev.recv() {
-            Err(DevError::Nothing) => {
+        match dev.recv(|buffer| {
+            let ethernet_frame = EthernetFrame::try_from(buffer).unwrap();
+            if ethernet_frame.payload_type() != ethernet_types::IPV4 {
                 return None;
             }
-            Ok(buffer) => {
-                let ethernet_frame = EthernetFrame::try_from(buffer).unwrap();
-                if ethernet_frame.payload_type() != ethernet_types::IPV4 {
-                    continue;
-                }
-                let ip_packet = Ipv4Packet::try_from(ethernet_frame.payload()).unwrap();
-                if ip_packet.is_encoding_ok().is_err() || ip_packet.protocol() != ipv4_types::ICMP {
-                    continue;
-                }
-                let icmp_packet = Icmpv4Packet::try_from(ip_packet.payload()).unwrap();
-                if icmp_packet.is_encoding_ok().is_err() {
-                    continue;
-                }
-                let icmp_repr = Icmpv4Repr::deserialize(&icmp_packet);
-                return match icmp_repr {
-                    Ok(icmp @ Icmpv4Repr::EchoReply { .. }) => Some(icmp),
-                    _ => None,
-                };
+            let ip_packet = Ipv4Packet::try_from(ethernet_frame.payload()).unwrap();
+            if ip_packet.is_encoding_ok().is_err() || ip_packet.protocol() != ipv4_types::ICMP {
+                return None;
             }
-            _ => {
-                continue;
+            let icmp_packet = Icmpv4Packet::try_from(ip_packet.payload()).unwrap();
+            if icmp_packet.is_encoding_ok().is_err() {
+                return None;
             }
-        }
+            let icmp_repr = Icmpv4Repr::deserialize(&icmp_packet);
+            return match icmp_repr {
+                Ok(icmp @ Icmpv4Repr::EchoReply { .. }) => Some(icmp),
+                _ => None,
+            };
+        }) {
+            Err(_) => return None,
+            Ok(None) => continue,
+            Ok(icmp_repr) => return icmp_repr,
+        };
     }
 }

@@ -27,29 +27,33 @@ impl From<LinkError> for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// A high level interface for sending frames across a link.
-///
-/// While a device should be backed by an underlying link, it's main job
-/// is to provide a buffer allocation strategy for sending and receiving frames
-/// across a link and associate the link with a set of addresses.
-pub trait Device<'a> {
-    type TxBuffer: AsMut<[u8]>;
-
-    type RxBuffer: AsRef<[u8]>;
-
-    /// Returns a zero'd TxBuffer with at least buffer_len bytes.
+/// High level interface for sending frames across a link.
+pub trait Device {
+    /// Sends a frame via the underlying link.
     ///
-    /// Callers can write to the TxBuffer. Once dropped, the TxBuffer should
-    /// write to the underlying link. Implementations must support a single
-    /// outstanding TxBuffer at a time.
+    /// F receives a writable reference to the send buffer which will be
+    /// sent via the underlying link.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// A panic may be triggered if more than one TxBuffer exists at a time.
-    fn send(&'a mut self, buffer_len: usize) -> Result<Self::TxBuffer>;
+    /// Returns an error if there is an issue with the send request or
+    /// underlying link.
+    fn send<F, R>(&mut self, buffer_len: usize, f: F) -> Result<R>
+    where
+        F: FnOnce(&mut [u8]) -> R;
 
-    /// Returns a frame from the underlying link in an RxBuffer.
-    fn recv(&'a mut self) -> Result<Self::RxBuffer>;
+    /// Receives a frame via the underlying link.
+    ///
+    /// F receives a reference to the receive buffer which it can process
+    /// as desired.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is an issue with the underlying link,
+    /// including a lack of data.
+    fn recv<F, R>(&mut self, f: F) -> Result<R>
+    where
+        F: FnOnce(&[u8]) -> R;
 
     /// Returns the Ipv4 address associated with the device.
     fn get_ipv4_addr(&self) -> Ipv4Address;
@@ -61,8 +65,7 @@ pub trait Device<'a> {
 /// A Device which reuses preallocated Tx/Rx buffers.
 pub struct Standard<T: Link> {
     link: T,
-    tx_buffer: std::vec::Vec<u8>,
-    rx_buffer: std::vec::Vec<u8>,
+    buffer: std::vec::Vec<u8>,
     ipv4_addr: Ipv4Address,
     eth_addr: EthernetAddress,
 }
@@ -74,41 +77,52 @@ impl<T: Link> Standard<T> {
 
         Ok(Standard {
             link: link,
-            tx_buffer: vec![0; mtu],
-            rx_buffer: vec![0; mtu],
+            buffer: vec![0; mtu * 2],
             ipv4_addr: ipv4_addr,
             eth_addr: eth_addr,
         })
     }
 }
 
-impl<'a, T: Link> Device<'a> for Standard<T> {
-    type TxBuffer = TxBuffer<'a>;
-
-    type RxBuffer = &'a [u8];
-
-    fn send(&'a mut self, buffer_len: usize) -> Result<Self::TxBuffer> {
-        if buffer_len >= self.tx_buffer.len() {
+impl<T: Link> Device for Standard<T> {
+    fn send<F, R>(&mut self, buffer_len: usize, f: F) -> Result<R>
+    where
+        F: FnOnce(&mut [u8]) -> R,
+    {
+        if buffer_len > self.buffer.len() / 2 {
             return Err(Error::Overflow);
         }
 
-        let buffer = &mut self.tx_buffer[..buffer_len];
-        for b in buffer.iter_mut() {
-            *b = 0;
+        for i in 0..buffer_len {
+            self.buffer[i] = 0;
         }
 
-        Ok(TxBuffer {
-            link: &mut self.link,
-            tx_buffer: buffer,
-        })
+        let send_buffer = &mut self.buffer[..buffer_len];
+
+        let res = f(send_buffer);
+
+        self.link.send(send_buffer)?;
+
+        Ok(res)
     }
 
-    fn recv(&'a mut self) -> Result<Self::RxBuffer> {
-        let buffer_len = self.link.recv(&mut self.rx_buffer)?;
-        if buffer_len == 0 {
-            return Err(Error::Nothing);
+    fn recv<F, R>(&mut self, f: F) -> Result<R>
+    where
+        F: FnOnce(&[u8]) -> R,
+    {
+        let send_buffer_len = self.buffer.len() / 2;
+        let recv_buffer = &mut self.buffer[send_buffer_len..];
+
+        match self.link.recv(recv_buffer) {
+            Ok(buffer_len) => {
+                if buffer_len == 0 {
+                    Err(Error::Nothing)
+                } else {
+                    Ok(f(&recv_buffer[..buffer_len]))
+                }
+            }
+            Err(err) => Err(Error::Link(err)),
         }
-        Ok(&self.rx_buffer[..buffer_len])
     }
 
     fn get_ipv4_addr(&self) -> Ipv4Address {
@@ -117,30 +131,6 @@ impl<'a, T: Link> Device<'a> for Standard<T> {
 
     fn get_ethernet_addr(&self) -> EthernetAddress {
         self.eth_addr
-    }
-}
-
-/// A TxBuffer for a Device which uses a heap allocated Vec for storage.
-pub struct TxBuffer<'a> {
-    link: &'a mut Link,
-    tx_buffer: &'a mut [u8],
-}
-
-impl<'a> AsRef<[u8]> for TxBuffer<'a> {
-    fn as_ref(&self) -> &[u8] {
-        self.tx_buffer.as_ref()
-    }
-}
-
-impl<'a> AsMut<[u8]> for TxBuffer<'a> {
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.tx_buffer.as_mut()
-    }
-}
-
-impl<'a> Drop for TxBuffer<'a> {
-    fn drop(&mut self) {
-        self.link.send(self.tx_buffer).unwrap();
     }
 }
 
@@ -173,16 +163,23 @@ mod tests {
 
         let mut dev = new_test_dev(link);
 
-        {
-            let mut buffer = dev.send(1).unwrap();
-            buffer.as_mut()[0] = 9;
-        }
+        assert_eq!(
+            dev.send(1, |buffer| {
+                buffer[0] = 9;
+                9
+            }).unwrap(),
+            9
+        );
 
-        {
-            // Ensure buffer is 0'd on subsequent sends...
-            let buffer = dev.send(2).unwrap();
-            assert_eq!(buffer.as_ref(), [0, 0]);
-        }
+        assert_eq!(dev.buffer[0], 9);
+
+        assert_eq!(
+            dev.send(1, |buffer| {
+                assert_eq!(buffer[0], 0);
+                10
+            }).unwrap(),
+            10
+        );
     }
 
     #[test]
@@ -195,10 +192,7 @@ mod tests {
 
         let mut dev = new_test_dev(link);
 
-        assert!(match dev.send(101) {
-            Err(Error::Overflow) => true,
-            _ => false,
-        });
+        assert_matches!(dev.send(101, |_| {}), Err(Error::Overflow));
     }
 
     #[test]
@@ -214,7 +208,13 @@ mod tests {
 
         let mut dev = new_test_dev(link);
 
-        assert_eq!(dev.recv().unwrap().len(), 100);
+        assert_eq!(
+            dev.recv(|buffer| {
+                assert_eq!(buffer.len(), 100);
+                100
+            }).unwrap(),
+            100
+        );
     }
 
     #[test]
@@ -230,7 +230,7 @@ mod tests {
 
         let mut dev = new_test_dev(link);
 
-        assert_matches!(dev.recv(), Err(Error::Link(LinkError::Busy)));
+        assert_matches!(dev.recv(|_| {}), Err(Error::Link(LinkError::Busy)));
     }
 
     #[test]
@@ -246,6 +246,6 @@ mod tests {
 
         let mut dev = new_test_dev(link);
 
-        assert_matches!(dev.recv(), Err(Error::Nothing));
+        assert_matches!(dev.recv(|_| {}), Err(Error::Nothing));
     }
 }
