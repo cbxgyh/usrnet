@@ -5,6 +5,8 @@
 extern crate assert_matches;
 extern crate byteorder;
 extern crate libc;
+#[macro_use]
+extern crate log;
 
 pub mod core;
 

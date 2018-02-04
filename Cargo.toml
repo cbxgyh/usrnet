@@ -6,10 +6,12 @@ authors = ["Andrei Maximov <andrei.maximov@gmail.com>"]
 [dependencies]
 byteorder = "1.0"
 libc = "0.2"
+log = "0.4"
 
 [dev-dependencies]
 assert_matches = "1.1.0"
 clap = "2.29"
+env_logger = "0.5.3"
 
 [[example]]
 name = "arping"

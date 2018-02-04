@@ -125,6 +125,16 @@ where
         Self::MIN_BUFFER_SIZE + payload_len
     }
 
+    /// Gets the hardware destination address.
+    pub fn dst_addr(&self) -> Address {
+        Address::try_from(&self.buffer.as_ref()[fields::DST_ADDR]).unwrap()
+    }
+
+    /// Gets the hardware source address.
+    pub fn src_addr(&mut self) -> Address {
+        Address::try_from(&self.buffer.as_ref()[fields::SRC_ADDR]).unwrap()
+    }
+
     /// Returns the payload type of the frame or an error containing the unknown code.
     pub fn payload_type(&self) -> u16 {
         (&self.buffer.as_ref()[fields::PAYLOAD_TYPE])
@@ -149,7 +159,7 @@ where
             .unwrap();
     }
 
-    /// Sets the hardware source address, usually that of the link.
+    /// Sets the hardware source address.
     pub fn set_src_addr(&mut self, addr: Address) {
         (&mut self.buffer.as_mut()[fields::SRC_ADDR])
             .write(addr.as_bytes())
