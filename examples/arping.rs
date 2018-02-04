@@ -3,10 +3,7 @@ extern crate usrnet;
 
 mod env;
 
-use usrnet::core::dev::{
-    Device,
-    Error as DevError,
-};
+use usrnet::core::dev::Device;
 use usrnet::core::layers::{
     ethernet_types,
     Arp,
@@ -72,58 +69,57 @@ fn main() {
 fn send_arp(dev: &mut env::Dev, ip: Ipv4Address) {
     let arp = Arp::EthernetIpv4 {
         op: ArpOp::Request,
-        source_hw_addr: dev.get_ethernet_addr(),
-        source_proto_addr: dev.get_ipv4_addr(),
+        source_hw_addr: dev.ethernet_addr(),
+        source_proto_addr: dev.ipv4_addr(),
         target_hw_addr: EthernetAddress::BROADCAST,
         target_proto_addr: ip,
     };
 
-    let dev_eth_addr = dev.get_ethernet_addr();
-    let buffer_len = EthernetFrame::<&[u8]>::buffer_len(arp.buffer_len());
-    dev.send(buffer_len, |buffer| {
-        let mut eth_frame = EthernetFrame::try_from(buffer).unwrap();
+    let frame_len = EthernetFrame::<&[u8]>::buffer_len(arp.buffer_len());
+    let buffer = env::mut_buffer(frame_len);
+
+    {
+        let mut eth_frame = EthernetFrame::try_from(&mut buffer[..]).unwrap();
         eth_frame.set_dst_addr(EthernetAddress::BROADCAST);
-        eth_frame.set_src_addr(dev_eth_addr);
+        eth_frame.set_src_addr(dev.ethernet_addr());
         eth_frame.set_payload_type(ethernet_types::ARP as u16);
         arp.serialize(eth_frame.payload_mut()).unwrap();
-    }).unwrap();
+    }
+
+    dev.send(buffer).unwrap();
 }
 
 fn recv_arp(dev: &mut env::Dev, ip: Ipv4Address) -> Option<EthernetAddress> {
-    let eth_addr = dev.get_ethernet_addr();
-    let ip_addr = dev.get_ipv4_addr();
+    let buffer = env::mut_buffer(dev.max_transmission_unit());
 
-    match dev.recv(|buffer| {
-        let eth_frame = EthernetFrame::try_from(buffer).unwrap();
+    let buffer = match dev.recv(buffer) {
+        Ok(buffer_len) => &buffer[..buffer_len],
+        _ => return None,
+    };
 
-        if eth_frame.payload_type() != ethernet_types::ARP {
-            return None;
-        }
+    let eth_frame = EthernetFrame::try_from(buffer).unwrap();
 
-        match Arp::deserialize(eth_frame.payload()) {
-            Ok(Arp::EthernetIpv4 {
-                op,
-                source_hw_addr,
-                source_proto_addr,
-                target_hw_addr,
-                target_proto_addr,
-            }) => {
-                if op != ArpOp::Reply || source_proto_addr != ip || target_hw_addr != eth_addr
-                    || target_proto_addr != ip_addr
-                {
-                    None
-                } else {
-                    Some(source_hw_addr)
-                }
+    if eth_frame.payload_type() != ethernet_types::ARP {
+        return None;
+    }
+
+    match Arp::deserialize(eth_frame.payload()) {
+        Ok(Arp::EthernetIpv4 {
+            op,
+            source_hw_addr,
+            source_proto_addr,
+            target_hw_addr,
+            target_proto_addr,
+        }) => {
+            if op != ArpOp::Reply || source_proto_addr != ip
+                || target_hw_addr != dev.ethernet_addr()
+                || target_proto_addr != dev.ipv4_addr()
+            {
+                None
+            } else {
+                Some(source_hw_addr)
             }
-            _ => None,
         }
-    }) {
-        Err(DevError::Nothing) => None,
-        Err(err) => {
-            eprintln!("Error: {:?}", err);
-            None
-        }
-        Ok(hw_addr) => hw_addr,
+        _ => None,
     }
 }

@@ -63,9 +63,9 @@ fn send_ipv4_packet<F>(dev: &mut env::Dev, buffer_len: usize, f: F)
 where
     F: FnOnce(&mut Ipv4Packet<&mut [u8]>),
 {
-    let src_ip_addr = dev.get_ipv4_addr();
-    let packet_len = Ipv4Packet::<&[u8]>::buffer_len(buffer_len);
-    send_eth_frame(dev, packet_len, |eth_frame| {
+    let src_ip_addr = dev.ipv4_addr();
+    let buffer_len = Ipv4Packet::<&[u8]>::buffer_len(buffer_len);
+    send_eth_frame(dev, buffer_len, |eth_frame| {
         // TODO: Arp cache.
         eth_frame.set_dst_addr(EthernetAddress::new([0x0A, 0x00, 0x27, 0x00, 0x00, 0x00]));
         eth_frame.set_payload_type(ethernet_types::IPV4 as u16);
@@ -75,7 +75,7 @@ where
         ip_packet.set_header_len(5);
         ip_packet.set_dscp(0);
         ip_packet.set_ecn(0);
-        ip_packet.set_packet_len(packet_len as u16);
+        ip_packet.set_packet_len(buffer_len as u16);
         ip_packet.set_identification(42);
         ip_packet.set_flags(ipv4_flags::DONT_FRAGMENT);
         ip_packet.set_fragment_offset(0);
@@ -94,39 +94,46 @@ fn send_eth_frame<F>(dev: &mut env::Dev, buffer_len: usize, f: F)
 where
     F: FnOnce(&mut EthernetFrame<&mut [u8]>),
 {
-    let src_hw_addr = dev.get_ethernet_addr();
     let frame_len = EthernetFrame::<&[u8]>::buffer_len(buffer_len);
-    dev.send(frame_len, |buffer| {
-        let mut ethernet_frame = EthernetFrame::try_from(buffer).unwrap();
-        ethernet_frame.set_src_addr(src_hw_addr);
-        f(&mut ethernet_frame);
-    }).unwrap();
+    let buffer = env::mut_buffer(frame_len);
+
+    {
+        let mut eth_frame = EthernetFrame::try_from(&mut buffer[..]).unwrap();
+        eth_frame.set_src_addr(dev.ethernet_addr());
+        f(&mut eth_frame);
+    }
+
+    dev.send(buffer).unwrap();
 }
 
 fn recv_eth_frame(dev: &mut env::Dev) -> Option<Icmpv4Repr> {
     loop {
-        match dev.recv(|buffer| {
-            let ethernet_frame = EthernetFrame::try_from(buffer).unwrap();
-            if ethernet_frame.payload_type() != ethernet_types::IPV4 {
-                return None;
-            }
-            let ip_packet = Ipv4Packet::try_from(ethernet_frame.payload()).unwrap();
-            if ip_packet.is_encoding_ok().is_err() || ip_packet.protocol() != ipv4_types::ICMP {
-                return None;
-            }
-            let icmp_packet = Icmpv4Packet::try_from(ip_packet.payload()).unwrap();
-            if icmp_packet.is_encoding_ok().is_err() {
-                return None;
-            }
-            let icmp_repr = Icmpv4Repr::deserialize(&icmp_packet);
-            return match icmp_repr {
-                Ok(icmp @ Icmpv4Repr::EchoReply { .. }) => Some(icmp),
-                _ => None,
-            };
-        }) {
-            Err(_) => return None,
-            Ok(None) => continue,
-            Ok(icmp_repr) => return icmp_repr,
+        let buffer = env::mut_buffer(dev.max_transmission_unit());
+
+        let buffer = match dev.recv(buffer) {
+            Ok(buffer_len) => &buffer[..buffer_len],
+            _ => return None,
         };
+
+        let eth_frame = EthernetFrame::try_from(buffer).unwrap();
+        if eth_frame.payload_type() != ethernet_types::IPV4 {
+            continue;
+        }
+
+        let ip_packet = Ipv4Packet::try_from(eth_frame.payload()).unwrap();
+        if ip_packet.is_encoding_ok().is_err() || ip_packet.protocol() != ipv4_types::ICMP {
+            continue;
+        }
+
+        let icmp_packet = Icmpv4Packet::try_from(ip_packet.payload()).unwrap();
+        if icmp_packet.is_encoding_ok().is_err() {
+            continue;
+        }
+
+        let icmp_repr = Icmpv4Repr::deserialize(&icmp_packet);
+        match icmp_repr {
+            Ok(icmp @ Icmpv4Repr::EchoReply { .. }) => return Some(icmp),
+            _ => continue,
+        }
     }
 }

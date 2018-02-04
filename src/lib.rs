@@ -5,7 +5,6 @@
 extern crate assert_matches;
 extern crate byteorder;
 extern crate libc;
-extern crate mock_derive;
 
 pub mod core;
 
