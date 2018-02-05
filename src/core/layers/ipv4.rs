@@ -68,6 +68,12 @@ impl std::str::FromStr for Address {
     }
 }
 
+impl std::hash::Hash for Address {
+    fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
+        std::hash::Hash::hash_slice(&self.0[..], h)
+    }
+}
+
 /// [https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml](https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml)
 pub mod types {
     pub const ICMP: u8 = 1;

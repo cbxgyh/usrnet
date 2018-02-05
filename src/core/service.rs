@@ -1,3 +1,4 @@
+use core::arp_cache::ArpCache;
 use core::dev::{
     Device,
     Error as DevError,
@@ -15,14 +16,15 @@ where
     D: Device,
 {
     dev: D,
+    arp_cache: ArpCache,
 }
 
 impl<D> Service<D>
 where
     D: Device,
 {
-    pub fn new(dev: D) -> Service<D> {
-        Service { dev }
+    pub fn new(dev: D, arp_cache: ArpCache) -> Service<D> {
+        Service { dev, arp_cache }
     }
 }
 
@@ -113,7 +115,14 @@ where
                     target_proto_addr: source_proto_addr,
                 };
 
-                // TODO: Update ARP cache with sender record.
+                self.arp_cache
+                    .set_eth_addr_for_ip(source_proto_addr, source_hw_addr);
+
+                debug!(
+                    "Service::recv_arp(...) sending ARP reply to {}/{}.",
+                    source_proto_addr, source_hw_addr
+                );
+
                 self.send_ethernet(arp_repr.buffer_len(), |eth_frame| {
                     eth_frame.set_dst_addr(source_hw_addr);
                     eth_frame.set_payload_type(ethernet_types::ARP as u16);
