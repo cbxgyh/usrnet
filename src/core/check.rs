@@ -7,7 +7,7 @@ use byteorder::{
 ///
 /// See [IPv4 header checksum](https://en.wikipedia.org/wiki/IPv4_header_checksum) for an example.
 pub fn internet_checksum(buffer: &[u8]) -> u16 {
-    let mut acc = 0 as u32;
+    let mut acc: u32 = 0;
 
     for i in 0..(buffer.len() / 2) {
         let x = (&buffer[i * 2..i * 2 + 2])

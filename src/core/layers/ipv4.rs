@@ -169,11 +169,11 @@ where
     }
 
     pub fn ip_version(&self) -> u8 {
-        (self.buffer.as_ref()[fields::IP_VERSION_AND_HEADER_LEN] & 0xF0) >> 4 as u8
+        (self.buffer.as_ref()[fields::IP_VERSION_AND_HEADER_LEN] & 0xF0) >> 4
     }
 
     pub fn header_len(&self) -> u8 {
-        (self.buffer.as_ref()[fields::IP_VERSION_AND_HEADER_LEN] & 0x0F) as u8
+        (self.buffer.as_ref()[fields::IP_VERSION_AND_HEADER_LEN] & 0x0F)
     }
 
     pub fn dscp(&self) -> u8 {
@@ -197,7 +197,7 @@ where
     }
 
     pub fn flags(&self) -> u8 {
-        (self.buffer.as_ref()[fields::FLAGS] & 0xE0) >> 5 as u8
+        (self.buffer.as_ref()[fields::FLAGS] & 0xE0) >> 5
     }
 
     pub fn fragment_offset(&self) -> u16 {

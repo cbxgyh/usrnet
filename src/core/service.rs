@@ -125,7 +125,7 @@ where
 
                 self.send_ethernet(arp_repr.buffer_len(), |eth_frame| {
                     eth_frame.set_dst_addr(source_hw_addr);
-                    eth_frame.set_payload_type(ethernet_types::ARP as u16);
+                    eth_frame.set_payload_type(ethernet_types::ARP);
                     arp_repr.serialize(eth_frame.payload_mut()).unwrap();
                 });
             }

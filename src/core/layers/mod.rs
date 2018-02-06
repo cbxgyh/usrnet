@@ -6,10 +6,10 @@ pub mod ipv4;
 use std;
 
 pub use self::arp::{
+    hw_types as arp_hw_types,
+    proto_types as arp_proto_types,
     Arp,
-    HwType as ArpHwType,
     Op as ArpOp,
-    ProtoType as ArpProtoType,
 };
 pub use self::ethernet::{
     types as ethernet_types,

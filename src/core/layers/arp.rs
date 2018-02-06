@@ -22,18 +22,14 @@ pub enum Op {
     Reply = 0x0002,
 }
 
-#[repr(u16)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-// https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-2
-pub enum HwType {
-    Ethernet = 0x0001,
+/// https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-2
+pub mod hw_types {
+    pub const ETHERNET: u16 = 0x0001;
 }
 
-#[repr(u16)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-// https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-3
-pub enum ProtoType {
-    Ipv4 = 0x0800,
+/// https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml#arp-parameters-3
+pub mod proto_types {
+    pub const IPV4: u16 = 0x0800;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,9 +64,7 @@ impl Arp {
         let _ = reader.read_u8().unwrap();
         let op = reader.read_u16::<NetworkEndian>().unwrap();
 
-        if hw_type != HwType::Ethernet as u16 || proto_type != ProtoType::Ipv4 as u16 || op == 0
-            || op > 2
-        {
+        if hw_type != hw_types::ETHERNET || proto_type != proto_types::IPV4 || op == 0 || op > 2 {
             return Err(Error::Encoding);
         }
 
@@ -101,13 +95,13 @@ impl Arp {
             } => {
                 let mut writer = std::io::Cursor::new(buffer);
                 writer
-                    .write_u16::<NetworkEndian>(HwType::Ethernet as u16)
+                    .write_u16::<NetworkEndian>(hw_types::ETHERNET)
                     .unwrap();
                 writer
-                    .write_u16::<NetworkEndian>(ProtoType::Ipv4 as u16)
+                    .write_u16::<NetworkEndian>(proto_types::IPV4)
                     .unwrap();
-                writer.write_u8(6 as u8).unwrap();
-                writer.write_u8(4 as u8).unwrap();
+                writer.write_u8(6).unwrap();
+                writer.write_u8(4).unwrap();
                 writer.write_u16::<NetworkEndian>(op as u16).unwrap();
                 writer.write(source_hw_addr.as_bytes()).unwrap();
                 writer.write(source_proto_addr.as_bytes()).unwrap();
