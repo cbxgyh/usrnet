@@ -1,14 +1,18 @@
+use usrnet::core::arp_cache::ArpCache;
 use usrnet::core::dev::Device;
 use usrnet::core::layers::{
     EthernetAddress,
     Ipv4Address,
 };
+use usrnet::core::service::Service;
+use usrnet::core::time::SystemEnv;
 use usrnet::linux::dev::Tap;
 
 pub type Dev = Tap;
 
 static mut DEV_BUFFER: [u8; 10240] = [0; 10240];
 
+#[allow(dead_code)]
 pub fn default_dev() -> Dev {
     let tap = Tap::new(
         "tap0",
@@ -24,6 +28,13 @@ pub fn default_dev() -> Dev {
     );
 
     tap
+}
+
+#[allow(dead_code)]
+pub fn default_service() -> Service<Dev> {
+    let dev = default_dev();
+    let arp_cache = ArpCache::new(60, SystemEnv::new());
+    Service::new(dev, arp_cache)
 }
 
 #[allow(dead_code)]
