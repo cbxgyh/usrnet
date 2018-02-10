@@ -7,7 +7,7 @@ use byteorder::{
     WriteBytesExt,
 };
 
-use core::layers::{
+use {
     Error,
     Result,
 };
@@ -27,7 +27,7 @@ impl Address {
     /// Creates a MAC address from a network byte order slice.
     pub fn try_from(addr: &[u8]) -> Result<Address> {
         if addr.len() != 6 {
-            return Err(Error::Buffer);
+            return Err(Error::Exhausted);
         }
 
         let mut _addr: [u8; 6] = [0; 6];
@@ -114,7 +114,7 @@ where
     /// Causes an error if the buffer is less than MIN_BUFFER_SIZE bytes long.
     pub fn try_from(buffer: T) -> Result<Frame<T>> {
         if buffer.as_ref().len() < Self::MIN_BUFFER_SIZE {
-            return Err(Error::Buffer);
+            return Err(Error::Exhausted);
         }
 
         Ok(Frame { buffer })

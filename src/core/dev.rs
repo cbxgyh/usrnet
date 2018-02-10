@@ -1,23 +1,8 @@
-use std;
-
+use Result;
 use core::layers::{
     EthernetAddress,
     Ipv4Address,
 };
-
-#[derive(Debug)]
-pub enum Error {
-    /// Indicates a generic IO error.
-    IO(std::io::Error),
-    /// Indicates a device that is currently busy.
-    Busy,
-    /// Indicates a missized buffer error.
-    Buffer,
-    /// Indicates an empty device.
-    Nothing,
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
 
 /// A low level interface for sending frames.
 pub trait Device {

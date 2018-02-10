@@ -4,11 +4,11 @@ use byteorder::{
     WriteBytesExt,
 };
 
-use core::check::internet_checksum;
-use core::layers::{
+use {
     Error,
     Result,
 };
+use core::check::internet_checksum;
 
 /// Safe representation of an ICMP header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -33,7 +33,7 @@ impl Repr {
                 id: id(),
                 seq: seq(),
             }),
-            _ => Err(Error::Encoding),
+            _ => Err(Error::Malformed),
         }
     }
 
@@ -89,7 +89,7 @@ impl<T: AsRef<[u8]>> Packet<T> {
     /// if parsing a packet from the wire. Otherwise member functions may panic.
     pub fn try_from(buffer: T) -> Result<Packet<T>> {
         if buffer.as_ref().len() < Self::MIN_BUFFER_LEN {
-            return Err(Error::Buffer);
+            return Err(Error::Exhausted);
         }
 
         Ok(Packet { buffer })
@@ -170,7 +170,7 @@ mod tests {
     fn test_packet_buffer_too_small() {
         let buffer: [u8; 7] = [0; 7];
         assert!(match Packet::try_from(&buffer[..]) {
-            Err(Error::Buffer) => true,
+            Err(Error::Exhausted) => true,
             _ => false,
         });
     }

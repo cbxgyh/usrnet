@@ -7,11 +7,11 @@ use byteorder::{
     WriteBytesExt,
 };
 
-use core::check::internet_checksum;
-use core::layers::{
+use {
     Error,
     Result,
 };
+use core::check::internet_checksum;
 
 /// [IPv4 address](https://en.wikipedia.org/wiki/IPv4) in network byte order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,7 +26,7 @@ impl Address {
     /// Creates an IPv4 address from a network byte order slice.
     pub fn try_from(addr: &[u8]) -> Result<Address> {
         if addr.len() != 4 {
-            return Err(Error::Buffer);
+            return Err(Error::Exhausted);
         }
 
         let mut _addr: [u8; 4] = [0; 4];
@@ -136,7 +136,7 @@ where
         let buffer_len = buffer.as_ref().len();
 
         if buffer_len < Self::buffer_len(0) || buffer_len > u16::max_value() as usize {
-            return Err(Error::Buffer);
+            return Err(Error::Exhausted);
         }
 
         Ok(Packet { buffer })
@@ -147,7 +147,7 @@ where
         if self.ip_version() != 4 || ((self.header_len() * 4) as usize) > self.buffer.as_ref().len()
             || (self.packet_len() as usize) > self.buffer.as_ref().len()
         {
-            return Err(Error::Encoding);
+            return Err(Error::Malformed);
         }
 
         if self.gen_header_checksum() != 0 {
@@ -326,7 +326,7 @@ mod tests {
     fn test_packet_with_buffer_less_than_min_header() {
         let buffer: [u8; 19] = [0; 19];
         let packet = Packet::try_from(&buffer[..]);
-        assert_matches!(packet, Err(Error::Buffer));
+        assert_matches!(packet, Err(Error::Exhausted));
     }
 
     #[test]
@@ -336,7 +336,7 @@ mod tests {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
         let packet = Packet::try_from(&buffer[..]).unwrap();
-        assert_matches!(packet.is_encoding_ok(), Err(Error::Encoding));
+        assert_matches!(packet.is_encoding_ok(), Err(Error::Malformed));
     }
 
     #[test]
@@ -346,7 +346,7 @@ mod tests {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
         let packet = Packet::try_from(&buffer[..]).unwrap();
-        assert_matches!(packet.is_encoding_ok(), Err(Error::Encoding));
+        assert_matches!(packet.is_encoding_ok(), Err(Error::Malformed));
     }
 
     #[test]

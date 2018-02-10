@@ -7,11 +7,13 @@ use byteorder::{
     WriteBytesExt,
 };
 
-use core::layers::{
+use {
     Error,
+    Result,
+};
+use core::layers::{
     EthernetAddress,
     Ipv4Address,
-    Result,
 };
 
 #[repr(u16)]
@@ -54,7 +56,7 @@ impl Arp {
     /// Attempts to deserialize a buffer into an ARP packet.
     pub fn deserialize(buffer: &[u8]) -> Result<Arp> {
         if buffer.len() < 8 {
-            return Err(Error::Buffer);
+            return Err(Error::Exhausted);
         }
 
         let mut reader = std::io::Cursor::new(buffer);
@@ -65,7 +67,7 @@ impl Arp {
         let op = reader.read_u16::<NetworkEndian>().unwrap();
 
         if hw_type != hw_types::ETHERNET || proto_type != proto_types::IPV4 || op == 0 || op > 2 {
-            return Err(Error::Encoding);
+            return Err(Error::Malformed);
         }
 
         Ok(Arp::EthernetIpv4 {
@@ -82,7 +84,7 @@ impl Arp {
     /// You should ensure buffer has at least buffer_len() bytes to avoid errors.
     pub fn serialize(&self, buffer: &mut [u8]) -> Result<()> {
         if self.buffer_len() > buffer.len() {
-            return Err(Error::Buffer);
+            return Err(Error::Exhausted);
         }
 
         match *self {

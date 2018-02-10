@@ -2,11 +2,11 @@ use std;
 
 use libc;
 
-use core::dev::{
-    Device,
+use {
     Error,
     Result,
 };
+use core::dev::Device;
 use core::layers::{
     EthernetAddress,
     Ipv4Address,
@@ -93,7 +93,7 @@ impl Device for Tap {
             );
 
             if wrote < 0 && _libc::errno() == libc::EAGAIN {
-                return Err(Error::Busy);
+                return Err(Error::Exhausted);
             } else if wrote < 0 {
                 Err(Error::IO(std::io::Error::last_os_error()))
             } else {
@@ -111,7 +111,7 @@ impl Device for Tap {
             );
 
             if read < 0 && _libc::errno() == libc::EAGAIN {
-                return Err(Error::Nothing);
+                return Err(Error::Exhausted);
             } else if read < 0 {
                 Err(Error::IO(std::io::Error::last_os_error()))
             } else {

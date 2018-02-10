@@ -1,47 +1,19 @@
-use std;
-
-use core::arp_cache::ArpCache;
-use core::dev::{
-    Device,
-    Error as DevError,
+use {
+    Error,
+    Result,
 };
+use core::arp_cache::ArpCache;
+use core::dev::Device;
 use core::layers::{
     ethernet_types,
     Arp,
     ArpOp,
-    Error as LayerError,
     EthernetAddress,
     EthernetFrame,
     Ipv4Address,
     Ipv4Packet,
     ipv4_flags,
 };
-
-#[derive(Debug)]
-pub enum Error {
-    /// Device error.
-    Device(DevError),
-    /// Layer error.
-    Layer(LayerError),
-    /// Error resolving an IPv4 address.
-    Address,
-    /// Indicates a no-op.
-    NoOp,
-}
-
-impl From<DevError> for Error {
-    fn from(error: DevError) -> Self {
-        Error::Device(error)
-    }
-}
-
-impl From<LayerError> for Error {
-    fn from(error: LayerError) -> Self {
-        Error::Layer(error)
-    }
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
 
 pub struct Service<D>
 where
@@ -72,13 +44,12 @@ where
             match self.dev.recv(recv_buffer.as_mut()) {
                 Ok(buffer_len) => match self.recv_ethernet(&recv_buffer[..buffer_len]) {
                     Ok(_) => continue,
-                    Err(Error::Layer(err)) => warn!("Layer failed with {:?}", err),
-                    Err(Error::Device(err)) => warn!("Device failed with {:?}", err),
                     Err(Error::Address) => continue,
                     Err(Error::NoOp) => continue,
+                    Err(err) => warn!("Error processing ethernet with {:?}", err),
                 },
-                Err(DevError::Nothing) => break,
-                Err(err) => warn!("Device failed with {:?}", err),
+                Err(Error::Exhausted) => break,
+                Err(err) => warn!("Error receiving ethernet with {:?}", err),
             };
         }
     }

@@ -3,8 +3,6 @@ pub mod ethernet;
 pub mod icmpv4;
 pub mod ipv4;
 
-use std;
-
 pub use self::arp::{
     hw_types as arp_hw_types,
     proto_types as arp_proto_types,
@@ -26,15 +24,3 @@ pub use self::ipv4::{
     flags as ipv4_flags,
     types as ipv4_types,
 };
-
-#[derive(Debug)]
-pub enum Error {
-    /// Indicates a size error with a buffer.
-    Buffer,
-    /// Indicates an encoding error.
-    Encoding,
-    /// Indicates a checksum error.
-    Checksum,
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
