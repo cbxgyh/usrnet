@@ -101,6 +101,26 @@ where
     buffer: T,
 }
 
+impl<T> std::ops::Deref for Frame<T>
+where
+    T: AsRef<[u8]>,
+{
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        self.buffer.as_ref()
+    }
+}
+
+impl<T> std::ops::DerefMut for Frame<T>
+where
+    T: AsRef<[u8]> + AsMut<[u8]>,
+{
+    fn deref_mut(&mut self) -> &mut [u8] {
+        self.buffer.as_mut()
+    }
+}
+
 impl<T> Frame<T>
 where
     T: AsRef<[u8]>,

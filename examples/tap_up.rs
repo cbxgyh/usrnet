@@ -5,11 +5,14 @@ extern crate usrnet;
 mod env;
 
 use usrnet::core::layers::{
+    ethernet_types,
     Icmpv4Packet,
     Icmpv4Repr,
     Ipv4Address,
+    Ipv4Packet,
     ipv4_types,
 };
+use usrnet::core::socket::Socket;
 
 /// Opens and brings UP a Linux TAP interface.
 fn main() {
@@ -20,9 +23,11 @@ fn main() {
     let buffer_len = Icmpv4Packet::<&[u8]>::MIN_BUFFER_LEN;
     let ip_addr = Ipv4Address::new([10, 0, 0, 1]);
 
+    let mut sockets = [Socket::RawSocket(env::raw_socket())];
+
     // Loop until ARP resolves IP address...
     loop {
-        service.recv();
+        service.recv(&mut sockets);
 
         match service.send_ipv4_packet(buffer_len, ip_addr, |ipv4_packet| {
             ipv4_packet.set_protocol(ipv4_types::ICMP);
@@ -45,4 +50,42 @@ fn main() {
     }
 
     println!("Sent a ping to {} via Tap!", ip_addr);
+
+    // Loop until ping reply arrives.
+    loop {
+        match sockets[0].try_as_raw_socket().unwrap().recv(|eth_frame| {
+            if eth_frame.payload_type() != ethernet_types::IPV4 {
+                return None;
+            }
+
+            let ip_packet = Ipv4Packet::try_from(eth_frame.payload()).unwrap();
+            if ip_packet.is_encoding_ok().is_err() || ip_packet.protocol() != ipv4_types::ICMP
+                || ip_packet.src_addr() != ip_addr
+                || ip_packet.dst_addr() != env::default_ipv4_addr()
+            {
+                return None;
+            }
+
+            let icmp_packet = Icmpv4Packet::try_from(ip_packet.payload()).unwrap();
+            if icmp_packet.is_encoding_ok().is_err() {
+                return None;
+            }
+
+            let icmp_repr = Icmpv4Repr::deserialize(&icmp_packet);
+            match icmp_repr {
+                Ok(Icmpv4Repr::EchoReply { .. }) => Some(()),
+                _ => None,
+            }
+        }) {
+            Err(_) => {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                service.recv(&mut sockets);
+            }
+            Ok(None) => continue,
+            _ => {
+                println!("Got ping response from {}!", ip_addr);
+                std::process::exit(0);
+            }
+        }
+    }
 }

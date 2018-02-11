@@ -14,6 +14,7 @@ use core::layers::{
     Ipv4Packet,
     ipv4_flags,
 };
+use core::socket::Socket;
 
 pub struct Service<D>
 where
@@ -36,13 +37,14 @@ impl<D> Service<D>
 where
     D: Device,
 {
-    /// Processes all ingress traffic on the associated device.
-    pub fn recv(&mut self) {
+    /// Processes all ingress traffic on the associated device and forward
+    /// packets to the appropriate sockets.
+    pub fn recv(&mut self, sockets: &mut [Socket]) {
         let mut recv_buffer = vec![0; self.dev.max_transmission_unit()];
 
         loop {
             match self.dev.recv(recv_buffer.as_mut()) {
-                Ok(buffer_len) => match self.recv_ethernet(&recv_buffer[..buffer_len]) {
+                Ok(buffer_len) => match self.recv_ethernet(&recv_buffer[..buffer_len], sockets) {
                     Ok(_) => continue,
                     Err(Error::Address) => continue,
                     Err(Error::NoOp) => continue,
@@ -108,7 +110,7 @@ where
         Ok(())
     }
 
-    fn recv_ethernet(&mut self, eth_buffer: &[u8]) -> Result<()> {
+    fn recv_ethernet(&mut self, eth_buffer: &[u8], sockets: &mut [Socket]) -> Result<()> {
         let eth_frame = EthernetFrame::try_from(eth_buffer)?;
         if eth_frame.dst_addr() != self.dev.ethernet_addr()
             && eth_frame.dst_addr() != EthernetAddress::BROADCAST
@@ -118,6 +120,17 @@ where
                 eth_frame.dst_addr()
             );
         }
+
+        for socket in sockets {
+            match socket.try_as_raw_socket() {
+                Some(raw_socket) => match raw_socket.recv_forward(&eth_frame) {
+                    Err(err) => debug!("Error forward packet to raw socket with {:?}.", err),
+                    _ => {}
+                },
+                _ => {}
+            };
+        }
+
         match eth_frame.payload_type() {
             ethernet_types::ARP => self.recv_arp_packet(eth_frame.payload()),
             i => {

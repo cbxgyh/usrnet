@@ -1,3 +1,5 @@
+use std;
+
 use usrnet::core::arp_cache::ArpCache;
 use usrnet::core::dev::Device;
 use usrnet::core::layers::{
@@ -5,6 +7,11 @@ use usrnet::core::layers::{
     Ipv4Address,
 };
 use usrnet::core::service::Service;
+use usrnet::core::socket::{
+    Buffer,
+    RawSocket,
+};
+use usrnet::core::storage::Ring;
 use usrnet::core::time::SystemEnv;
 use usrnet::linux::dev::Tap;
 
@@ -12,13 +19,17 @@ pub type Dev = Tap;
 
 static mut DEV_BUFFER: [u8; 10240] = [0; 10240];
 
+pub fn default_ipv4_addr() -> Ipv4Address {
+    Ipv4Address::new([10, 0, 0, 103])
+}
+
+pub fn default_eth_addr() -> EthernetAddress {
+    EthernetAddress::new([0, 1, 2, 3, 4, 5])
+}
+
 #[allow(dead_code)]
 pub fn default_dev() -> Dev {
-    let tap = Tap::new(
-        "tap0",
-        Ipv4Address::new([10, 0, 0, 103]),
-        EthernetAddress::new([0, 1, 2, 3, 4, 5]),
-    );
+    let tap = Tap::new("tap0", default_ipv4_addr(), default_eth_addr());
 
     println!(
         "Device: (MTU = {}, IPv4 = {}, MAC = {})",
@@ -46,4 +57,17 @@ pub fn mut_buffer(buffer_len: usize) -> &'static mut [u8] {
         }
         buffer
     }
+}
+
+#[allow(dead_code)]
+pub fn raw_socket<'a>() -> RawSocket<'a> {
+    let ring = || {
+        let mut buffers = std::vec::Vec::new();
+        for _ in 0..32 {
+            buffers.push(Buffer::from(vec![0; 1500]));
+        }
+        Ring::from(buffers)
+    };
+
+    RawSocket::new(ring(), ring())
 }
