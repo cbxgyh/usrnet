@@ -14,7 +14,10 @@ use core::layers::{
     Ipv4Packet,
     ipv4_flags,
 };
-use core::socket::Socket;
+use core::socket::{
+    RawSocket,
+    Socket,
+};
 
 pub struct Service<D>
 where
@@ -37,6 +40,38 @@ impl<D> Service<D>
 where
     D: Device,
 {
+    /// Sends out egress traffic enqueued on the socket until the socket is
+    /// empty or the service encounters an error.
+    pub fn send_raw_socket(&mut self, raw_socket: &mut RawSocket) {
+        loop {
+            match raw_socket.send_forward(|eth_frame| {
+                self.send_eth_frame(eth_frame.payload().len(), |eth_frame_| {
+                    eth_frame_.set_dst_addr(eth_frame.dst_addr());
+                    eth_frame_.set_payload_type(eth_frame.payload_type());
+                    eth_frame_
+                        .payload_mut()
+                        .copy_from_slice(eth_frame.payload());
+                })
+            }) {
+                Err(Error::Exhausted) => break,
+                Err(err) => {
+                    debug!("Error sending raw ethernet frame with {:?}.", err);
+                    break;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Sends out all egress traffic on the provided sockets.
+    pub fn send(&mut self, sockets: &mut [Socket]) {
+        for socket in sockets {
+            match *socket {
+                Socket::RawSocket(ref mut raw_socket) => self.send_raw_socket(raw_socket),
+            }
+        }
+    }
+
     /// Processes all ingress traffic on the associated device and forward
     /// packets to the appropriate sockets.
     pub fn recv(&mut self, sockets: &mut [Socket]) {
@@ -58,7 +93,7 @@ where
 
     pub fn send_ipv4_packet<F>(
         &mut self,
-        buffer_len: usize,
+        payload_len: usize,
         ipv4_dst_addr: Ipv4Address,
         f: F,
     ) -> Result<()>
@@ -67,7 +102,7 @@ where
     {
         let eth_dst_addr = self.eth_addr_for_ip(ipv4_dst_addr)?;
         let src_ip_addr = self.dev.ipv4_addr();
-        let buffer_len = Ipv4Packet::<&[u8]>::buffer_len(buffer_len);
+        let buffer_len = Ipv4Packet::<&[u8]>::buffer_len(payload_len);
 
         self.send_eth_frame(buffer_len, |eth_frame| {
             eth_frame.set_dst_addr(eth_dst_addr);
@@ -93,11 +128,11 @@ where
         })
     }
 
-    pub fn send_eth_frame<F>(&mut self, buffer_len: usize, f: F) -> Result<()>
+    pub fn send_eth_frame<F>(&mut self, payload_len: usize, f: F) -> Result<()>
     where
         F: FnOnce(&mut EthernetFrame<&mut [u8]>),
     {
-        let frame_len = EthernetFrame::<&[u8]>::buffer_len(buffer_len);
+        let frame_len = EthernetFrame::<&[u8]>::buffer_len(payload_len);
         let mut buffer = vec![0; frame_len];
 
         {
@@ -170,9 +205,6 @@ where
                             target_hw_addr: source_hw_addr,
                             target_proto_addr: source_proto_addr,
                         };
-
-                        self.arp_cache
-                            .set_eth_addr_for_ip(source_proto_addr, source_hw_addr);
 
                         debug!(
                             "Sending ARP reply to {}/{}.",

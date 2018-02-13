@@ -28,21 +28,23 @@ impl<'a> RawSocket<'a> {
     /// # Errors
     ///
     /// An error occurs if the send buffer is full.
-    pub fn send<F, R>(&'a mut self, buffer_len: usize, f: F) -> Result<R>
+    pub fn send<F, R>(&mut self, payload_len: usize, f: F) -> Result<R>
     where
         F: FnOnce(EthernetFrame<&mut [u8]>) -> R,
     {
         self.send_buffer.enqueue_maybe(|buffer| {
-            match buffer.try_resize(buffer_len) {
+            let eth_frame_len = EthernetFrame::<&[u8]>::buffer_len(payload_len);
+
+            match buffer.try_resize(eth_frame_len) {
                 Err(err) => return Err(err),
                 _ => {}
             };
 
-            for i in 0..buffer_len {
+            for i in 0..eth_frame_len {
                 buffer[i] = 0;
             }
 
-            let eth_frame = EthernetFrame::try_from(&mut buffer[..buffer_len])?;
+            let eth_frame = EthernetFrame::try_from(&mut buffer[..eth_frame_len])?;
 
             Ok(f(eth_frame))
         })
@@ -55,11 +57,11 @@ impl<'a> RawSocket<'a> {
     /// An error occurs if the receive buffer is empty.
     pub fn recv<F, R>(&mut self, f: F) -> Result<R>
     where
-        F: FnOnce(EthernetFrame<&mut [u8]>) -> R,
+        F: FnOnce(EthernetFrame<&[u8]>) -> R,
     {
         loop {
             match self.recv_buffer
-                .dequeue_with(|buffer| EthernetFrame::try_from(&mut buffer[..]))
+                .dequeue_with(|buffer| EthernetFrame::try_from(&buffer[..]))
             {
                 Err(err) => return Err(err),
                 Ok(Ok(eth_frame)) => return Ok(f(eth_frame)),
@@ -68,12 +70,21 @@ impl<'a> RawSocket<'a> {
         }
     }
 
-    pub fn send_forward<F, T>(&mut self, _: F)
+    /// Attempts to dequeue an ethernet frame enqueued for sending via a
+    /// function f which can process the frame.
+    ///
+    /// # Errors
+    ///
+    /// An error occurs if the send buffer is empty or f returns an error, in
+    /// which case the frame is not dequeued from the socket.
+    pub fn send_forward<F, R>(&mut self, f: F) -> Result<R>
     where
-        F: FnOnce(&EthernetFrame<T>),
-        T: AsRef<[u8]>,
+        F: FnOnce(EthernetFrame<&[u8]>) -> Result<R>,
     {
-        unimplemented!();
+        self.send_buffer.dequeue_maybe(|buffer| {
+            let eth_frame = EthernetFrame::try_from(&buffer[..])?;
+            f(eth_frame)
+        })
     }
 
     /// Enqueues an ethernet frame for dequeuing by a future call to recv.
