@@ -17,6 +17,7 @@ use core::layers::{
 use core::socket::{
     RawSocket,
     Socket,
+    SocketSet,
 };
 
 pub struct Service<D>
@@ -64,8 +65,8 @@ where
     }
 
     /// Sends out all egress traffic on the provided sockets.
-    pub fn send(&mut self, sockets: &mut [Socket]) {
-        for socket in sockets {
+    pub fn send<'a, 'b: 'a>(&mut self, sockets: &mut SocketSet<'a, 'b>) {
+        for socket in sockets.iter_mut() {
             match *socket {
                 Socket::RawSocket(ref mut raw_socket) => self.send_raw_socket(raw_socket),
             }
@@ -74,7 +75,7 @@ where
 
     /// Processes all ingress traffic on the associated device and forward
     /// packets to the appropriate sockets.
-    pub fn recv(&mut self, sockets: &mut [Socket]) {
+    pub fn recv<'a, 'b: 'a>(&mut self, sockets: &mut SocketSet<'a, 'b>) {
         let mut recv_buffer = vec![0; self.dev.max_transmission_unit()];
 
         loop {
@@ -145,7 +146,11 @@ where
         Ok(())
     }
 
-    fn recv_ethernet(&mut self, eth_buffer: &[u8], sockets: &mut [Socket]) -> Result<()> {
+    fn recv_ethernet<'a, 'b: 'a>(
+        &mut self,
+        eth_buffer: &[u8],
+        sockets: &mut SocketSet<'a, 'b>,
+    ) -> Result<()> {
         let eth_frame = EthernetFrame::try_from(eth_buffer)?;
         if eth_frame.dst_addr() != self.dev.ethernet_addr()
             && eth_frame.dst_addr() != EthernetAddress::BROADCAST
@@ -156,7 +161,7 @@ where
             );
         }
 
-        for socket in sockets {
+        for socket in sockets.iter_mut() {
             match socket.try_as_raw_socket() {
                 Some(raw_socket) => match raw_socket.recv_forward(&eth_frame) {
                     Err(err) => debug!("Error forward packet to raw socket with {:?}.", err),

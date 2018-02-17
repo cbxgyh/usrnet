@@ -1,6 +1,8 @@
 pub mod raw;
+pub mod set;
 
 pub use self::raw::RawSocket;
+pub use self::set::SocketSet;
 
 /// One of many types of sockets.
 pub enum Socket<'a> {

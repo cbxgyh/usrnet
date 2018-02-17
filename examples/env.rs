@@ -7,7 +7,10 @@ use usrnet::core::layers::{
     Ipv4Address,
 };
 use usrnet::core::service::Service;
-use usrnet::core::socket::RawSocket;
+use usrnet::core::socket::{
+    RawSocket,
+    SocketSet,
+};
 use usrnet::core::storage::{
     Ring,
     Slice,
@@ -57,6 +60,15 @@ pub fn mut_buffer(buffer_len: usize) -> &'static mut [u8] {
         }
         buffer
     }
+}
+
+#[allow(dead_code)]
+pub fn socket_set<'a, 'b: 'a>() -> SocketSet<'a, 'b> {
+    let mut sockets = vec![];
+    for _ in 0..16 {
+        sockets.push(None);
+    }
+    SocketSet::new(Slice::from(sockets))
 }
 
 #[allow(dead_code)]

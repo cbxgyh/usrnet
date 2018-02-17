@@ -56,7 +56,9 @@ fn main() {
 
     let mut service = env::default_service();
 
-    let mut sockets = [Socket::RawSocket(env::raw_socket())];
+    let mut socket_set = env::socket_set();
+    let raw_socket = Socket::RawSocket(env::raw_socket());
+    let raw_handle = socket_set.add_socket(raw_socket).unwrap();
 
     let arp = Arp::EthernetIpv4 {
         op: ArpOp::Request,
@@ -66,8 +68,9 @@ fn main() {
         target_proto_addr: arp_ip,
     };
 
-    sockets[0]
-        .try_as_raw_socket()
+    socket_set
+        .socket(raw_handle)
+        .and_then(Socket::try_as_raw_socket)
         .unwrap()
         .send(arp.buffer_len(), |mut eth_frame| {
             eth_frame.set_dst_addr(EthernetAddress::BROADCAST);
@@ -76,7 +79,7 @@ fn main() {
         })
         .unwrap();
 
-    service.send(&mut sockets);
+    service.send(&mut socket_set);
     println!("ARP request sent. Use tshark or tcpdump to observe.");
 
     let since = std::time::Instant::now();
@@ -90,14 +93,20 @@ fn main() {
             return 1;
         }
 
-        match recv_arp(sockets[0].try_as_raw_socket().unwrap(), arp_ip) {
+        match recv_arp(
+            socket_set
+                .socket(raw_handle)
+                .and_then(Socket::try_as_raw_socket)
+                .unwrap(),
+            arp_ip,
+        ) {
             Ok(eth_addr) => {
                 println!("{} has MAC {}!", arp_ip, eth_addr);
                 return 0;
             }
             Err(Error::Exhausted) => {
                 std::thread::sleep(std::time::Duration::from_millis(1));
-                service.recv(&mut sockets);
+                service.recv(&mut socket_set);
             }
             Err(_) => continue,
         }
