@@ -1,7 +1,5 @@
-pub mod buffer;
 pub mod raw;
 
-pub use self::buffer::Buffer;
 pub use self::raw::RawSocket;
 
 /// One of many types of sockets.

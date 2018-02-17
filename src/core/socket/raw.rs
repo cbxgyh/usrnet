@@ -2,10 +2,12 @@ use std::io::Write;
 
 use Result;
 use core::layers::EthernetFrame;
-use core::socket::Buffer;
-use core::storage::Ring;
+use core::storage::{
+    Ring,
+    Slice,
+};
 
-pub type FrameBuffer<'a> = Ring<'a, Buffer<'a>>;
+pub type FrameBuffer<'a> = Ring<'a, Slice<'a, u8>>;
 
 /// Socket for sending and receiving raw ethernet frames.
 pub struct RawSocket<'a> {
@@ -35,7 +37,7 @@ impl<'a> RawSocket<'a> {
         self.send_buffer.enqueue_maybe(|buffer| {
             let eth_frame_len = EthernetFrame::<&[u8]>::buffer_len(payload_len);
 
-            match buffer.try_resize(eth_frame_len) {
+            match buffer.try_resize(eth_frame_len, 0) {
                 Err(err) => return Err(err),
                 _ => {}
             };
@@ -94,7 +96,7 @@ impl<'a> RawSocket<'a> {
     /// An error occurs if the receive buffer is full.
     pub fn recv_forward(&mut self, eth_frame: &EthernetFrame<&[u8]>) -> Result<()> {
         self.recv_buffer.enqueue_maybe(|buffer| {
-            match buffer.try_resize(eth_frame.len()) {
+            match buffer.try_resize(eth_frame.len(), 0) {
                 Err(err) => return Err(err),
                 _ => {}
             };

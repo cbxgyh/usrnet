@@ -7,11 +7,11 @@ use usrnet::core::layers::{
     Ipv4Address,
 };
 use usrnet::core::service::Service;
-use usrnet::core::socket::{
-    Buffer,
-    RawSocket,
+use usrnet::core::socket::RawSocket;
+use usrnet::core::storage::{
+    Ring,
+    Slice,
 };
-use usrnet::core::storage::Ring;
 use usrnet::core::time::SystemEnv;
 use usrnet::linux::dev::Tap;
 
@@ -64,7 +64,7 @@ pub fn raw_socket<'a>() -> RawSocket<'a> {
     let ring = || {
         let mut buffers = std::vec::Vec::new();
         for _ in 0..32 {
-            buffers.push(Buffer::from(vec![0; 1500]));
+            buffers.push(Slice::from(vec![0; 1500]));
         }
         Ring::from(buffers)
     };
