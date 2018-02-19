@@ -42,16 +42,25 @@ where
     D: Device,
 {
     /// Sends out all egress traffic on the provided sockets.
-    pub fn send<'a, 'b: 'a>(&mut self, sockets: &mut SocketSet<'a, 'b>) {
+    pub fn send(&mut self, sockets: &mut SocketSet) {
         for socket in sockets.iter_mut() {
             loop {
                 match socket.send_forward(|packet| match packet {
                     Packet::Raw(ref eth_buffer) => {
-                        self.send_dev_frame(eth_buffer.len(), |dev_buffer| {
-                            dev_buffer.copy_from_slice(eth_buffer);
+                        self.send_eth_frame(eth_buffer.len(), |eth_frame| {
+                            eth_frame.as_mut().copy_from_slice(eth_buffer);
                         })
                     }
-                    _ => unimplemented!(),
+                    Packet::Ipv4(ref ip_buffer) => {
+                        if let Ok(ip_packet) = Ipv4Packet::try_from(ip_buffer) {
+                            let ipv4_dst_addr = ip_packet.dst_addr();
+                            self.send_ipv4_packet(ip_buffer.len(), ipv4_dst_addr, |ip_packet| {
+                                ip_packet.as_mut().copy_from_slice(ip_buffer);
+                            })?;
+                        }
+
+                        Ok(())
+                    }
                 }) {
                     Ok(_) => continue,
                     Err(Error::Exhausted) => break,
@@ -66,19 +75,18 @@ where
 
     /// Processes all ingress traffic on the associated device and forward
     /// packets to the appropriate sockets.
-    pub fn recv<'a, 'b: 'a>(&mut self, sockets: &mut SocketSet<'a, 'b>) {
+    pub fn recv(&mut self, sockets: &mut SocketSet) {
         let mut eth_buffer = vec![0; self.dev.max_transmission_unit()];
 
         loop {
             match self.dev.recv(&mut eth_buffer) {
-                Ok(buffer_len) => {
-                    match self.recv_ethernet(&mut eth_buffer[..buffer_len], sockets) {
-                        Ok(_) => continue,
-                        Err(Error::Address) => continue,
-                        Err(Error::NoOp) => continue,
-                        Err(err) => warn!("Error processing ethernet with {:?}", err),
-                    }
-                }
+                Ok(buffer_len) => match self.recv_eth_frame(&mut eth_buffer[..buffer_len], sockets)
+                {
+                    Ok(_) => continue,
+                    Err(Error::Address) => continue,
+                    Err(Error::NoOp) => continue,
+                    Err(err) => warn!("Error processing ethernet with {:?}", err),
+                },
                 Err(Error::Exhausted) => break,
                 Err(err) => warn!("Error receiving ethernet with {:?}", err),
             };
@@ -87,7 +95,7 @@ where
 
     pub fn send_ipv4_packet<F>(
         &mut self,
-        payload_len: usize,
+        ip_packet_len: usize,
         ipv4_dst_addr: Ipv4Address,
         f: F,
     ) -> Result<()>
@@ -96,9 +104,9 @@ where
     {
         let eth_dst_addr = self.eth_addr_for_ip(ipv4_dst_addr)?;
         let src_ip_addr = self.dev.ipv4_addr();
-        let buffer_len = Ipv4Packet::<&[u8]>::buffer_len(payload_len);
+        let eth_frame_len = EthernetFrame::<&[u8]>::buffer_len(ip_packet_len);
 
-        self.send_eth_frame(buffer_len, |eth_frame| {
+        self.send_eth_frame(eth_frame_len, |eth_frame| {
             eth_frame.set_dst_addr(eth_dst_addr);
             eth_frame.set_payload_type(ethernet_types::IPV4);
 
@@ -107,7 +115,7 @@ where
             ip_packet.set_header_len(5);
             ip_packet.set_dscp(0);
             ip_packet.set_ecn(0);
-            ip_packet.set_packet_len(buffer_len as u16);
+            ip_packet.set_packet_len(ip_packet_len as u16);
             ip_packet.set_identification(0);
             ip_packet.set_flags(ipv4_flags::DONT_FRAGMENT);
             ip_packet.set_fragment_offset(0);
@@ -122,25 +130,35 @@ where
         })
     }
 
-    pub fn send_eth_frame<F>(&mut self, payload_len: usize, f: F) -> Result<()>
+    fn recv_ipv4_packet(&mut self, ipv4_buffer: &mut [u8], sockets: &mut SocketSet) -> Result<()> {
+        let mut ipv4_packet = Ipv4Packet::try_from(ipv4_buffer)?;
+
+        for socket in sockets.iter_mut() {
+            let packet = Packet::Ipv4(ipv4_packet.as_mut());
+            match socket.recv_forward(&packet) {
+                _ => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn send_eth_frame<F>(&mut self, eth_frame_len: usize, f: F) -> Result<()>
     where
         F: FnOnce(&mut EthernetFrame<&mut [u8]>),
     {
-        let eth_frame_len = EthernetFrame::<&[u8]>::buffer_len(payload_len);
-        let eth_src_addr = self.dev.ethernet_addr();
+        let mut eth_buffer = vec![0; eth_frame_len];
+        let mut eth_frame = EthernetFrame::try_from(&mut eth_buffer[..])?;
+        eth_frame.set_src_addr(self.dev.ethernet_addr());
 
-        self.send_dev_frame(eth_frame_len, |dev_buffer| {
-            let mut eth_frame = EthernetFrame::try_from(dev_buffer).unwrap();
-            f(&mut eth_frame);
-            eth_frame.set_src_addr(eth_src_addr);
-        })
+        f(&mut eth_frame);
+
+        self.dev.send(eth_frame.as_ref())?;
+
+        Ok(())
     }
 
-    fn recv_ethernet<'a, 'b: 'a>(
-        &mut self,
-        eth_buffer: &mut [u8],
-        sockets: &mut SocketSet<'a, 'b>,
-    ) -> Result<()> {
+    fn recv_eth_frame(&mut self, eth_buffer: &mut [u8], sockets: &mut SocketSet) -> Result<()> {
         let mut eth_frame = EthernetFrame::try_from(eth_buffer)?;
 
         if eth_frame.dst_addr() != self.dev.ethernet_addr()
@@ -161,21 +179,12 @@ where
 
         match eth_frame.payload_type() {
             ethernet_types::ARP => self.recv_arp_packet(eth_frame.payload()),
+            ethernet_types::IPV4 => self.recv_ipv4_packet(eth_frame.payload_mut(), sockets),
             i => {
                 debug!("Ignoring ethernet frame with type {}.", i);
                 Err(Error::NoOp)
             }
         }
-    }
-
-    pub fn send_dev_frame<F>(&mut self, buffer_len: usize, f: F) -> Result<()>
-    where
-        F: FnOnce(&mut [u8]),
-    {
-        let mut buffer = vec![0; buffer_len];
-        f(&mut buffer);
-        self.dev.send(&buffer)?;
-        Ok(())
     }
 
     fn recv_arp_packet(&mut self, arp_packet: &[u8]) -> Result<()> {
@@ -214,7 +223,10 @@ where
                             source_proto_addr, source_hw_addr
                         );
 
-                        self.send_eth_frame(arp_repr.buffer_len(), |eth_frame| {
+                        let eth_frame_len =
+                            EthernetFrame::<&[u8]>::buffer_len(arp_repr.buffer_len());
+
+                        self.send_eth_frame(eth_frame_len, |eth_frame| {
                             eth_frame.set_dst_addr(source_hw_addr);
                             eth_frame.set_payload_type(ethernet_types::ARP);
                             arp_repr.serialize(eth_frame.payload_mut()).unwrap();
@@ -240,7 +252,9 @@ where
 
                 debug!("Sending ARP request for {}.", ipv4_addr);
 
-                self.send_eth_frame(arp_repr.buffer_len(), |eth_frame| {
+                let eth_frame_len = EthernetFrame::<&[u8]>::buffer_len(arp_repr.buffer_len());
+
+                self.send_eth_frame(eth_frame_len, |eth_frame| {
                     eth_frame.set_dst_addr(EthernetAddress::BROADCAST);
                     eth_frame.set_payload_type(ethernet_types::ARP);
                     arp_repr.serialize(eth_frame.payload_mut()).unwrap();

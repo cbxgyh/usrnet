@@ -55,7 +55,6 @@ fn main() {
         })
         .unwrap();
 
-    service.send(&mut socket_set);
     println!("ARP request sent. Use tshark or tcpdump to observe.");
 
     let since = std::time::Instant::now();
@@ -97,6 +96,7 @@ fn main() {
         }
 
         std::thread::sleep(std::time::Duration::from_millis(100));
+        service.send(&mut socket_set);
         service.recv(&mut socket_set);
     }
 }

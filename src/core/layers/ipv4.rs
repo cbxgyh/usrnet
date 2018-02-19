@@ -121,6 +121,18 @@ where
     buffer: T,
 }
 
+impl<T: AsRef<[u8]>> AsRef<[u8]> for Packet<T> {
+    fn as_ref(&self) -> &[u8] {
+        self.buffer.as_ref()
+    }
+}
+
+impl<T: AsRef<[u8]> + AsMut<[u8]>> AsMut<[u8]> for Packet<T> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.buffer.as_mut()
+    }
+}
+
 impl<T> Packet<T>
 where
     T: AsRef<[u8]>,

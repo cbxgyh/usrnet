@@ -77,22 +77,22 @@ pub struct Packet<T: AsRef<[u8]>> {
 }
 
 impl<T: AsRef<[u8]>> Packet<T> {
-    /// Minimum size of a buffer that can encode an ICMP packet.
-    pub const MIN_BUFFER_LEN: usize = 8;
-
-    /// Wraps and represents the buffer as an ICMP packet.
+    /// Attempts to create an ICMP packet backed by a byte buffer.
     ///
     /// # Errors
     ///
-    /// Causes an error if the buffer is less than Self::MIN_BUFFER_LEN bytes
-    /// long. You should ensure the packet encoding is valid via is_encoding_ok()
-    /// if parsing a packet from the wire. Otherwise member functions may panic.
+    /// Causes an error if the buffer shorter than Frame::buffer_len(0) bytes.
     pub fn try_from(buffer: T) -> Result<Packet<T>> {
-        if buffer.as_ref().len() < Self::MIN_BUFFER_LEN {
+        if buffer.as_ref().len() < Self::buffer_len(0) {
             return Err(Error::Exhausted);
         }
 
         Ok(Packet { buffer })
+    }
+
+    /// Returns the length of a ICMP packet with the specified payload size.
+    pub fn buffer_len(payload_len: usize) -> usize {
+        8 + payload_len
     }
 
     /// Checks if the packet encoding is valid.
