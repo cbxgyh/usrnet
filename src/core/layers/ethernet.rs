@@ -94,55 +94,39 @@ mod fields {
 
 /// Ethernet frame represented as a byte buffer.
 #[derive(Debug)]
-pub struct Frame<T>
-where
-    T: AsRef<[u8]>,
-{
+pub struct Frame<T: AsRef<[u8]>> {
     buffer: T,
 }
 
-impl<T> std::ops::Deref for Frame<T>
-where
-    T: AsRef<[u8]>,
-{
-    type Target = [u8];
-
-    fn deref(&self) -> &[u8] {
+impl<T: AsRef<[u8]>> AsRef<[u8]> for Frame<T> {
+    fn as_ref(&self) -> &[u8] {
         self.buffer.as_ref()
     }
 }
 
-impl<T> std::ops::DerefMut for Frame<T>
-where
-    T: AsRef<[u8]> + AsMut<[u8]>,
-{
-    fn deref_mut(&mut self) -> &mut [u8] {
+impl<T: AsRef<[u8]> + AsMut<[u8]>> AsMut<[u8]> for Frame<T> {
+    fn as_mut(&mut self) -> &mut [u8] {
         self.buffer.as_mut()
     }
 }
 
-impl<T> Frame<T>
-where
-    T: AsRef<[u8]>,
-{
-    pub const MIN_BUFFER_SIZE: usize = 14;
-
-    /// Wraps and represents the buffer as an Ethernet frame.
+impl<T: AsRef<[u8]>> Frame<T> {
+    /// Attempts to create an ethernet frame backed by a byte buffer.
     ///
     /// # Errors
     ///
-    /// Causes an error if the buffer is less than MIN_BUFFER_SIZE bytes long.
+    /// Causes an error if the buffer shorter than Frame::buffer_len(0) bytes.
     pub fn try_from(buffer: T) -> Result<Frame<T>> {
-        if buffer.as_ref().len() < Self::MIN_BUFFER_SIZE {
+        if buffer.as_ref().len() < Self::buffer_len(0) {
             return Err(Error::Exhausted);
         }
 
         Ok(Frame { buffer })
     }
 
-    /// Returns the length of an Ethernet frame with the specified payload size.
+    /// Returns the length of an ethernet frame with the specified payload size.
     pub fn buffer_len(payload_len: usize) -> usize {
-        Self::MIN_BUFFER_SIZE + payload_len
+        14 + payload_len
     }
 
     /// Gets the hardware destination address.

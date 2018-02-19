@@ -7,6 +7,7 @@ use {
 use core::storage::Slice;
 
 /// Ring/bounded buffer of T's.
+#[derive(Debug)]
 pub struct Ring<'a, T: 'a> {
     buffer: Slice<'a, T>,
     begin: usize,

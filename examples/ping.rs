@@ -1,4 +1,3 @@
-extern crate clap;
 extern crate usrnet;
 
 mod env;
@@ -16,10 +15,12 @@ use usrnet::core::layers::{
     ipv4_types,
 };
 
+const IP_ADDR_PING: [u8; 4] = [10, 0, 0, 1];
+
 /// Sends an ICMP echo request to an IPv4 address.
 fn main() {
     let mut dev = env::default_dev();
-    let ip_addr = Ipv4Address::new([10, 0, 0, 1]);
+    let ip_addr = Ipv4Address::new(IP_ADDR_PING);
     send_icmp_packet(&mut dev, ip_addr, |icmp_packet| {
         let icmp = Icmpv4Repr::EchoRequest { id: 42, seq: 1 };
         icmp.serialize(icmp_packet);

@@ -1,63 +1,36 @@
-extern crate clap;
 extern crate env_logger;
 extern crate usrnet;
 
 mod env;
 
-use usrnet::{
-    Error,
-    Result,
-};
 use usrnet::core::layers::{
     ethernet_types,
     Arp,
     ArpOp,
     EthernetAddress,
+    EthernetFrame,
     Ipv4Address,
 };
 use usrnet::core::socket::{
-    RawSocket,
-    Socket,
+    RawType,
+    TaggedSocket,
 };
+
+const IP_ADDR_ARP: [u8; 4] = [10, 0, 0, 1];
+
+const TIMEOUT_MS: u64 = 1000;
 
 /// Sends an ARP request for an IPv4 address.
 fn main() {
     env_logger::init();
 
-    let matches = clap::App::new("arping")
-        .about("Sends an ARP request for an IPv4 address through a Linux TAP interface")
-        .arg(
-            clap::Arg::with_name("ip")
-                .long("ip")
-                .value_name("IP")
-                .help("IP address to request a MAC address for")
-                .default_value("10.0.0.1")
-                .takes_value(true),
-        )
-        .arg(
-            clap::Arg::with_name("timeout")
-                .long("timeout")
-                .value_name("TIMEOUT")
-                .help("Timeout in MS when waiting for an ARP reply")
-                .default_value("1000")
-                .takes_value(true),
-        )
-        .get_matches();
-
-    let arp_ip = matches
-        .value_of("ip")
-        .unwrap()
-        .parse::<Ipv4Address>()
-        .unwrap();
-
-    let timeout = std::time::Duration::from_millis(
-        matches.value_of("timeout").unwrap().parse::<u64>().unwrap(),
-    );
+    let arp_ip = Ipv4Address::new(IP_ADDR_ARP);
+    let timeout = std::time::Duration::from_millis(TIMEOUT_MS);
 
     let mut service = env::default_service();
 
     let mut socket_set = env::socket_set();
-    let raw_socket = Socket::RawSocket(env::raw_socket());
+    let raw_socket = TaggedSocket::Raw(env::raw_socket(RawType::Ethernet));
     let raw_handle = socket_set.add_socket(raw_socket).unwrap();
 
     let arp = Arp::EthernetIpv4 {
@@ -70,9 +43,12 @@ fn main() {
 
     socket_set
         .socket(raw_handle)
-        .and_then(Socket::try_as_raw_socket)
-        .unwrap()
-        .send(arp.buffer_len(), |mut eth_frame| {
+        .and_then(|socket| socket.as_raw_socket())
+        .map(|socket| {
+            let eth_frame_len = EthernetFrame::<&[u8]>::buffer_len(arp.buffer_len());
+            let eth_buffer = socket.send(eth_frame_len).unwrap();
+            let mut eth_frame = EthernetFrame::try_from(eth_buffer).unwrap();
+            eth_frame.set_src_addr(env::default_eth_addr());
             eth_frame.set_dst_addr(EthernetAddress::BROADCAST);
             eth_frame.set_payload_type(ethernet_types::ARP);
             arp.serialize(eth_frame.payload_mut()).unwrap();
@@ -85,60 +61,42 @@ fn main() {
     let since = std::time::Instant::now();
 
     // Read frames until (1) ARP reply is received or (2) timeout.
-    let mut recv_arp_loop = || loop {
+    loop {
         let now = std::time::Instant::now();
 
         if now.duration_since(since) > timeout {
             eprintln!("Timeout!");
-            return 1;
+            return;
         }
 
-        match recv_arp(
-            socket_set
-                .socket(raw_handle)
-                .and_then(Socket::try_as_raw_socket)
-                .unwrap(),
-            arp_ip,
-        ) {
-            Ok(eth_addr) => {
-                println!("{} has MAC {}!", arp_ip, eth_addr);
-                return 0;
+        while let Some(eth_buffer) = socket_set
+            .socket(raw_handle)
+            .and_then(|socket| socket.as_raw_socket())
+            .and_then(|socket| socket.recv().ok())
+        {
+            let eth_frame = EthernetFrame::try_from(eth_buffer).unwrap();
+
+            if eth_frame.payload_type() != ethernet_types::ARP {
+                continue;
             }
-            Err(Error::Exhausted) => {
-                std::thread::sleep(std::time::Duration::from_millis(1));
-                service.recv(&mut socket_set);
-            }
-            Err(_) => continue,
-        }
-    };
 
-    std::process::exit(recv_arp_loop());
-}
-
-fn recv_arp<'a>(raw_socket: &mut RawSocket<'a>, arp_ip: Ipv4Address) -> Result<EthernetAddress> {
-    match raw_socket.recv(|eth_frame| {
-        if eth_frame.payload_type() != ethernet_types::ARP {
-            return None;
-        }
-
-        match Arp::deserialize(eth_frame.payload()) {
-            Ok(Arp::EthernetIpv4 {
-                op,
-                source_hw_addr,
-                source_proto_addr,
-                ..
-            }) => {
-                if op != ArpOp::Reply || source_proto_addr != arp_ip {
-                    None
-                } else {
-                    Some(source_hw_addr)
+            match Arp::deserialize(eth_frame.payload()) {
+                Ok(Arp::EthernetIpv4 {
+                    op,
+                    source_hw_addr,
+                    source_proto_addr,
+                    ..
+                }) => {
+                    if op == ArpOp::Reply && source_proto_addr == arp_ip {
+                        println!("{} has MAC {}!", arp_ip, source_hw_addr);
+                        return;
+                    }
                 }
-            }
-            _ => None,
+                _ => continue,
+            };
         }
-    }) {
-        Ok(Some(eth_addr)) => Ok(eth_addr),
-        Ok(None) => Err(Error::NoOp),
-        Err(err) => Err(err),
+
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        service.recv(&mut socket_set);
     }
 }

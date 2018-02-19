@@ -9,6 +9,7 @@ use usrnet::core::layers::{
 use usrnet::core::service::Service;
 use usrnet::core::socket::{
     RawSocket,
+    RawType,
     SocketSet,
 };
 use usrnet::core::storage::{
@@ -72,7 +73,7 @@ pub fn socket_set<'a, 'b: 'a>() -> SocketSet<'a, 'b> {
 }
 
 #[allow(dead_code)]
-pub fn raw_socket<'a>() -> RawSocket<'a> {
+pub fn raw_socket<'a>(raw_type: RawType) -> RawSocket<'a> {
     let ring = || {
         let mut buffers = std::vec::Vec::new();
         for _ in 0..32 {
@@ -81,5 +82,5 @@ pub fn raw_socket<'a>() -> RawSocket<'a> {
         Ring::from(buffers)
     };
 
-    RawSocket::new(ring(), ring())
+    RawSocket::new(ring(), ring(), raw_type)
 }

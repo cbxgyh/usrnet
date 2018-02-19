@@ -4,22 +4,22 @@ use {
     Error,
     Result,
 };
-use core::socket::Socket;
+use core::socket::TaggedSocket;
 use core::storage::Slice;
 
 /// A set of sockets with integral handles...
 pub struct SocketSet<'a, 'b: 'a> {
-    sockets: Slice<'a, Option<Socket<'b>>>,
+    sockets: Slice<'a, Option<TaggedSocket<'b>>>,
 }
 
 impl<'a, 'b> SocketSet<'a, 'b> {
     /// Creates a socket set.
-    pub fn new(sockets: Slice<'a, Option<Socket<'b>>>) -> SocketSet<'a, 'b> {
+    pub fn new(sockets: Slice<'a, Option<TaggedSocket<'b>>>) -> SocketSet<'a, 'b> {
         SocketSet { sockets: sockets }
     }
 
     /// Adds a socket and returns a stable handle.
-    pub fn add_socket(&mut self, socket: Socket<'b>) -> Result<usize> {
+    pub fn add_socket(&mut self, socket: TaggedSocket<'b>) -> Result<usize> {
         let handle = {
             (0..self.sockets.len())
                 .filter(|i| self.sockets[*i].is_none())
@@ -36,7 +36,7 @@ impl<'a, 'b> SocketSet<'a, 'b> {
     }
 
     /// Attempts to return a reference to a socket with the specified handle.
-    pub fn socket(&mut self, socket_handle: usize) -> Option<&mut Socket<'b>> {
+    pub fn socket(&mut self, socket_handle: usize) -> Option<&mut TaggedSocket<'b>> {
         if socket_handle >= self.sockets.len() {
             None
         } else {
@@ -56,13 +56,13 @@ impl<'a, 'b> SocketSet<'a, 'b> {
 }
 
 pub struct SocketIter<'a, 'b: 'a> {
-    slice_iter: std::slice::IterMut<'a, Option<Socket<'b>>>,
+    slice_iter: std::slice::IterMut<'a, Option<TaggedSocket<'b>>>,
 }
 
 impl<'a, 'b, 'c> std::iter::Iterator for SocketIter<'a, 'b> {
-    type Item = &'a mut Socket<'b>;
+    type Item = &'a mut TaggedSocket<'b>;
 
-    fn next(&mut self) -> Option<&'a mut Socket<'b>> {
+    fn next(&mut self) -> Option<&'a mut TaggedSocket<'b>> {
         while let Some(socket_option) = self.slice_iter.next() {
             if let Some(ref mut socket) = *socket_option {
                 return Some(socket);

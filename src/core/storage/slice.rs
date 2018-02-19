@@ -7,6 +7,7 @@ use {
 
 /// Represents ownership of a T's buffer. Based on ideas from
 /// [https://github.com/m-labs/rust-managed](https://github.com/m-labs/rust-managed).
+#[derive(Debug)]
 pub enum Slice<'a, T: 'a> {
     Borrow(&'a mut [T], usize),
     Owned(std::vec::Vec<T>),
