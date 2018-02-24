@@ -20,27 +20,18 @@ use core::socket::{
     SocketSet,
 };
 
-pub struct Service<D>
-where
-    D: Device,
-{
+pub struct Service<D: Device> {
     dev: D,
     arp_cache: ArpCache,
 }
 
-impl<D> Service<D>
-where
-    D: Device,
-{
+impl<D: Device> Service<D> {
     pub fn new(dev: D, arp_cache: ArpCache) -> Service<D> {
         Service { dev, arp_cache }
     }
 }
 
-impl<D> Service<D>
-where
-    D: Device,
-{
+impl<D: Device> Service<D> {
     /// Sends out all egress traffic on the provided sockets.
     pub fn send(&mut self, sockets: &mut SocketSet) {
         for socket in sockets.iter_mut() {

@@ -1,4 +1,8 @@
 use std;
+use std::ops::{
+    Deref,
+    DerefMut,
+};
 
 use {
     Error,
@@ -26,8 +30,10 @@ impl<'a, T> From<std::vec::Vec<T>> for Slice<'a, T> {
     }
 }
 
-impl<'a, T> AsRef<[T]> for Slice<'a, T> {
-    fn as_ref(&self) -> &[T] {
+impl<'a, T> Deref for Slice<'a, T> {
+    type Target = [T];
+
+    fn deref(&self) -> &[T] {
         match *self {
             Slice::Borrow(ref slice, len) => &slice[..len],
             Slice::Owned(ref vec) => vec.as_slice(),
@@ -35,8 +41,8 @@ impl<'a, T> AsRef<[T]> for Slice<'a, T> {
     }
 }
 
-impl<'a, T> AsMut<[T]> for Slice<'a, T> {
-    fn as_mut(&mut self) -> &mut [T] {
+impl<'a, T> DerefMut for Slice<'a, T> {
+    fn deref_mut(&mut self) -> &mut [T] {
         match *self {
             Slice::Borrow(ref mut slice, len) => &mut slice[..len],
             Slice::Owned(ref mut vec) => vec.as_mut_slice(),
@@ -44,24 +50,7 @@ impl<'a, T> AsMut<[T]> for Slice<'a, T> {
     }
 }
 
-impl<'a, T> std::ops::Deref for Slice<'a, T> {
-    type Target = [T];
-
-    fn deref(&self) -> &[T] {
-        self.as_ref()
-    }
-}
-
-impl<'a, T> std::ops::DerefMut for Slice<'a, T> {
-    fn deref_mut(&mut self) -> &mut [T] {
-        self.as_mut()
-    }
-}
-
-impl<'a, T> Slice<'a, T>
-where
-    T: Clone,
-{
+impl<'a, T: Clone> Slice<'a, T> {
     /// Attempts to resize the the slice, filling additional slots with value.
     ///
     /// # Errors

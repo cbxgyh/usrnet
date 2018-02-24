@@ -25,10 +25,7 @@ where
     time_env: T,
 }
 
-impl<T> ArpCache<T>
-where
-    T: Env,
-{
+impl<T: Env> ArpCache<T> {
     /// Creates an ARP cache where ethernet address mappings expire after
     /// expiration_in_secs seconds.
     pub fn new(expiration_in_secs: u64, time_env: T) -> ArpCache<T> {

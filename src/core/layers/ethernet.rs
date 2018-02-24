@@ -152,10 +152,7 @@ impl<T: AsRef<[u8]>> Frame<T> {
     }
 }
 
-impl<T> Frame<T>
-where
-    T: AsRef<[u8]> + AsMut<[u8]>,
-{
+impl<T: AsRef<[u8]> + AsMut<[u8]>> Frame<T> {
     /// Sets the hardware destination address.
     pub fn set_dst_addr(&mut self, addr: Address) {
         (&mut self.buffer.as_mut()[fields::DST_ADDR])

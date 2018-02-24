@@ -114,10 +114,7 @@ mod fields {
 
 /// IPv4 packet represented as a byte buffer.
 #[derive(Debug)]
-pub struct Packet<T>
-where
-    T: AsRef<[u8]>,
-{
+pub struct Packet<T: AsRef<[u8]>> {
     buffer: T,
 }
 
@@ -133,10 +130,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> AsMut<[u8]> for Packet<T> {
     }
 }
 
-impl<T> Packet<T>
-where
-    T: AsRef<[u8]>,
-{
+impl<T: AsRef<[u8]>> Packet<T> {
     /// Wraps and represents the buffer as an Ethernet frame.
     ///
     /// # Errors
@@ -248,10 +242,7 @@ where
     }
 }
 
-impl<T> Packet<T>
-where
-    T: AsRef<[u8]> + AsMut<[u8]>,
-{
+impl<T: AsRef<[u8]> + AsMut<[u8]>> Packet<T> {
     pub fn set_ip_version(&mut self, version: u8) {
         self.buffer.as_mut()[fields::IP_VERSION_AND_HEADER_LEN] &= !0xF0;
         self.buffer.as_mut()[fields::IP_VERSION_AND_HEADER_LEN] |= version << 4;
