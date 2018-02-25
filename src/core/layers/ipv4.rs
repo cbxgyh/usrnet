@@ -14,7 +14,7 @@ use {
 use core::check::internet_checksum;
 
 /// [IPv4 address](https://en.wikipedia.org/wiki/IPv4) in network byte order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Address([u8; 4]);
 
 impl Address {
@@ -23,8 +23,8 @@ impl Address {
         Address(addr)
     }
 
-    /// Creates an IPv4 address from a network byte order slice.
-    pub fn try_from(addr: &[u8]) -> Result<Address> {
+    /// Tries to creates an IPv4 address from a network byte order slice.
+    pub fn try_new(addr: &[u8]) -> Result<Address> {
         if addr.len() != 4 {
             return Err(Error::Exhausted);
         }
@@ -68,14 +68,8 @@ impl std::str::FromStr for Address {
     }
 }
 
-impl std::hash::Hash for Address {
-    fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
-        std::hash::Hash::hash_slice(&self.0[..], h)
-    }
-}
-
 /// [https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml](https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml)
-pub mod types {
+pub mod protocols {
     pub const ICMP: u8 = 1;
 }
 
@@ -112,7 +106,7 @@ mod fields {
     pub const DST_ADDR: std::ops::Range<usize> = 16..20;
 }
 
-/// IPv4 packet represented as a byte buffer.
+/// View of a byte buffer as an IPv4 packet.
 #[derive(Debug)]
 pub struct Packet<T: AsRef<[u8]>> {
     buffer: T,
@@ -131,44 +125,39 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> AsMut<[u8]> for Packet<T> {
 }
 
 impl<T: AsRef<[u8]>> Packet<T> {
-    /// Wraps and represents the buffer as an Ethernet frame.
-    ///
-    /// # Errors
-    ///
-    /// Causes an error if the buffer is too small or too large. You should
-    /// ensure the packet encoding is valid via is_encoding_ok() if parsing
-    /// a packet from the wire. Otherwise member functions may panic.
-    pub fn try_from(buffer: T) -> Result<Packet<T>> {
-        let buffer_len = buffer.as_ref().len();
+    pub const MIN_HEADER_LEN: usize = 20;
 
-        if buffer_len < Self::buffer_len(0) || buffer_len > u16::max_value() as usize {
-            return Err(Error::Exhausted);
+    /// Tries to create an IPv4 packet view over a byte buffer.
+    pub fn try_new(buffer: T) -> Result<Packet<T>> {
+        if buffer.as_ref().len() < Self::MIN_HEADER_LEN {
+            Err(Error::Exhausted)
+        } else {
+            Ok(Packet { buffer })
         }
-
-        Ok(Packet { buffer })
     }
 
-    /// Checks if the packet encoding is valid.
-    pub fn is_encoding_ok(&self) -> Result<()> {
-        if self.ip_version() != 4 || ((self.header_len() * 4) as usize) > self.buffer.as_ref().len()
-            || (self.packet_len() as usize) > self.buffer.as_ref().len()
-        {
-            return Err(Error::Malformed);
-        }
-
-        if self.gen_header_checksum() != 0 {
-            return Err(Error::Checksum);
-        }
-
-        Ok(())
-    }
-
-    /// Returns the length of a IPv4 packet with no options and the payload size.
+    /// Returns the length of an IPv4 packet with the specified payload size.
     pub fn buffer_len(payload_len: usize) -> usize {
         20 + payload_len
     }
 
-    /// Calculates a checksum for the entire header.
+    /// Checks if the packet has a valid encoding. This may include checksum, field
+    /// consistency, etc. checks.
+    pub fn check_encoding(&self) -> Result<()> {
+        if (self.packet_len() as usize) > self.buffer.as_ref().len()
+            || ((self.header_len() * 4) as usize) < Self::MIN_HEADER_LEN
+            || ((self.header_len() * 4) as usize) > self.buffer.as_ref().len()
+            || self.ip_version() != 4
+        {
+            Err(Error::Malformed)
+        } else if self.gen_header_checksum() != 0 {
+            Err(Error::Checksum)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Calculates the header checksum.
     pub fn gen_header_checksum(&self) -> u16 {
         let header_len = (self.header_len() * 4) as usize;
         internet_checksum(&self.buffer.as_ref()[..header_len])
@@ -229,16 +218,17 @@ impl<T: AsRef<[u8]>> Packet<T> {
     }
 
     pub fn src_addr(&self) -> Address {
-        Address::try_from(&self.buffer.as_ref()[fields::SRC_ADDR]).unwrap()
+        Address::try_new(&self.buffer.as_ref()[fields::SRC_ADDR]).unwrap()
     }
 
     pub fn dst_addr(&self) -> Address {
-        Address::try_from(&self.buffer.as_ref()[fields::DST_ADDR]).unwrap()
+        Address::try_new(&self.buffer.as_ref()[fields::DST_ADDR]).unwrap()
     }
 
-    /// Returns an immutable view of the payload.
     pub fn payload(&self) -> &[u8] {
-        &self.buffer.as_ref()[(self.header_len() * 4) as usize..]
+        let header_len = (self.header_len() * 4) as usize;
+        let packet_len = self.packet_len() as usize;
+        &self.buffer.as_ref()[header_len..packet_len]
     }
 }
 
@@ -314,10 +304,10 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Packet<T> {
             .unwrap();
     }
 
-    /// Returns a mutable view of the payload.
     pub fn payload_mut(&mut self) -> &mut [u8] {
-        let header_len = self.header_len();
-        &mut self.buffer.as_mut()[(header_len * 4) as usize..]
+        let header_len = (self.header_len() * 4) as usize;
+        let packet_len = self.packet_len() as usize;
+        &mut self.buffer.as_mut()[header_len..packet_len]
     }
 }
 
@@ -328,50 +318,80 @@ mod tests {
     #[test]
     fn test_packet_with_buffer_less_than_min_header() {
         let buffer: [u8; 19] = [0; 19];
-        let packet = Packet::try_from(&buffer[..]);
+        let packet = Packet::try_new(&buffer[..]);
         assert_matches!(packet, Err(Error::Exhausted));
     }
 
     #[test]
-    fn test_packet_with_header_len_greater_than_buffer_len() {
-        let buffer: [u8; 20] = [
-            0x4F, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    fn test_packet_with_invalid_packet_len() {
+        let buffer: [u8; 42] = [
+            0x41, 0x11, 0x00, 0x13, 0xFF, 0xFF, 0xE1, 0x01, 0x02, 0x03, 0x00, 0x00, 0x01, 0x02,
+            0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
-        let packet = Packet::try_from(&buffer[..]).unwrap();
-        assert_matches!(packet.is_encoding_ok(), Err(Error::Malformed));
+        let packet = Packet::try_new(&buffer[..]).unwrap();
+        assert_matches!(packet.check_encoding(), Err(Error::Malformed));
+
+        let buffer: [u8; 42] = [
+            0x41, 0x11, 0x00, 0xFF, 0xFF, 0xFF, 0xE1, 0x01, 0x02, 0x03, 0x00, 0x00, 0x01, 0x02,
+            0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+        let packet = Packet::try_new(&buffer[..]).unwrap();
+        assert_matches!(packet.check_encoding(), Err(Error::Malformed));
     }
 
     #[test]
-    fn test_packet_with_packet_len_greater_than_buffer_len() {
-        let buffer: [u8; 20] = [
-            0x45, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    fn test_packet_with_invalid_header_len() {
+        let buffer: [u8; 42] = [
+            0x41, 0x11, 0x00, 0x28, 0xFF, 0xFF, 0xE1, 0x01, 0x02, 0x03, 0x00, 0x00, 0x01, 0x02,
+            0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
-        let packet = Packet::try_from(&buffer[..]).unwrap();
-        assert_matches!(packet.is_encoding_ok(), Err(Error::Malformed));
+        let packet = Packet::try_new(&buffer[..]).unwrap();
+        assert_matches!(packet.check_encoding(), Err(Error::Malformed));
+
+        let buffer: [u8; 42] = [
+            0x4F, 0x11, 0x00, 0x28, 0xFF, 0xFF, 0xE1, 0x01, 0x02, 0x03, 0x00, 0x00, 0x01, 0x02,
+            0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+        let packet = Packet::try_new(&buffer[..]).unwrap();
+        assert_matches!(packet.check_encoding(), Err(Error::Malformed));
+    }
+
+    #[test]
+    fn test_packet_with_invalid_ip_version() {
+        let buffer: [u8; 42] = [
+            0x41, 0x11, 0x00, 0x28, 0xFF, 0xFF, 0xE1, 0x01, 0x02, 0x03, 0x00, 0x00, 0x01, 0x02,
+            0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+        let packet = Packet::try_new(&buffer[..]).unwrap();
+        assert_matches!(packet.check_encoding(), Err(Error::Malformed));
     }
 
     #[test]
     fn test_packet_with_invalid_checksum() {
-        let buffer: [u8; 20] = [
-            0x45, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        let buffer: [u8; 42] = [
+            0x46, 0x11, 0x00, 0x28, 0xFF, 0xFF, 0xE1, 0x01, 0x02, 0x03, 0x00, 0x00, 0x01, 0x02,
+            0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
-        let packet = Packet::try_from(&buffer[..]).unwrap();
-        assert_matches!(packet.is_encoding_ok(), Err(Error::Checksum));
+        let packet = Packet::try_new(&buffer[..]).unwrap();
+        assert_matches!(packet.check_encoding(), Err(Error::Checksum));
     }
 
     #[test]
     fn test_packet_getters() {
-        let buffer: [u8; 40] = [
+        let buffer: [u8; 42] = [
             0x46, 0x11, 0x00, 0x28, 0xFF, 0xFF, 0xE1, 0x01, 0x02, 0x03, 0xC6, 0xAD, 0x01, 0x02,
             0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
 
-        let packet = Packet::try_from(&buffer[..]).unwrap();
-        assert_matches!(packet.is_encoding_ok(), Ok(_));
+        let packet = Packet::try_new(&buffer[..]).unwrap();
+        assert_matches!(packet.check_encoding(), Ok(_));
         assert_eq!(4, packet.ip_version());
         assert_eq!(6, packet.header_len());
         assert_eq!(4, packet.dscp());
@@ -391,10 +411,10 @@ mod tests {
 
     #[test]
     fn test_packet_setters() {
-        let mut buffer: [u8; 40] = [0; 40];
+        let mut buffer: [u8; 42] = [0; 42];
 
         {
-            let mut packet = Packet::try_from(&mut buffer[..]).unwrap();
+            let mut packet = Packet::try_new(&mut buffer[..]).unwrap();
             packet.set_ip_version(4);
             packet.set_header_len(6);
             packet.set_dscp(4);
@@ -416,7 +436,7 @@ mod tests {
             &[
                 0x46, 0x11, 0x00, 0x28, 0xFF, 0xFF, 0xE1, 0x01, 0x02, 0x03, 0x00, 0x04, 0x01, 0x02,
                 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             ][..]
         );
     }

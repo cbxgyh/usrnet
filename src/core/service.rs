@@ -5,7 +5,7 @@ use {
 use core::arp_cache::ArpCache;
 use core::dev::Device;
 use core::layers::{
-    ethernet_types,
+    eth_types,
     Arp,
     ArpOp,
     EthernetAddress,
@@ -43,7 +43,7 @@ impl<D: Device> Service<D> {
                         })
                     }
                     Packet::Ipv4(ref ip_buffer) => {
-                        if let Ok(ip_packet) = Ipv4Packet::try_from(ip_buffer) {
+                        if let Ok(ip_packet) = Ipv4Packet::try_new(ip_buffer) {
                             let ipv4_dst_addr = ip_packet.dst_addr();
                             self.send_ipv4_packet(ip_buffer.len(), ipv4_dst_addr, |ip_packet| {
                                 ip_packet.as_mut().copy_from_slice(ip_buffer);
@@ -99,9 +99,9 @@ impl<D: Device> Service<D> {
 
         self.send_eth_frame(eth_frame_len, |eth_frame| {
             eth_frame.set_dst_addr(eth_dst_addr);
-            eth_frame.set_payload_type(ethernet_types::IPV4);
+            eth_frame.set_payload_type(eth_types::IPV4);
 
-            let mut ip_packet = Ipv4Packet::try_from(eth_frame.payload_mut()).unwrap();
+            let mut ip_packet = Ipv4Packet::try_new(eth_frame.payload_mut()).unwrap();
             ip_packet.set_ip_version(4);
             ip_packet.set_header_len(5);
             ip_packet.set_dscp(0);
@@ -122,7 +122,7 @@ impl<D: Device> Service<D> {
     }
 
     fn recv_ipv4_packet(&mut self, ipv4_buffer: &mut [u8], sockets: &mut SocketSet) -> Result<()> {
-        let mut ipv4_packet = Ipv4Packet::try_from(ipv4_buffer)?;
+        let mut ipv4_packet = Ipv4Packet::try_new(ipv4_buffer)?;
 
         for socket in sockets.iter_mut() {
             let packet = Packet::Ipv4(ipv4_packet.as_mut());
@@ -139,7 +139,7 @@ impl<D: Device> Service<D> {
         F: FnOnce(&mut EthernetFrame<&mut [u8]>),
     {
         let mut eth_buffer = vec![0; eth_frame_len];
-        let mut eth_frame = EthernetFrame::try_from(&mut eth_buffer[..])?;
+        let mut eth_frame = EthernetFrame::try_new(&mut eth_buffer[..])?;
         eth_frame.set_src_addr(self.dev.ethernet_addr());
 
         f(&mut eth_frame);
@@ -150,7 +150,7 @@ impl<D: Device> Service<D> {
     }
 
     fn recv_eth_frame(&mut self, eth_buffer: &mut [u8], sockets: &mut SocketSet) -> Result<()> {
-        let mut eth_frame = EthernetFrame::try_from(eth_buffer)?;
+        let mut eth_frame = EthernetFrame::try_new(eth_buffer)?;
 
         if eth_frame.dst_addr() != self.dev.ethernet_addr()
             && eth_frame.dst_addr() != EthernetAddress::BROADCAST
@@ -169,8 +169,8 @@ impl<D: Device> Service<D> {
         }
 
         match eth_frame.payload_type() {
-            ethernet_types::ARP => self.recv_arp_packet(eth_frame.payload()),
-            ethernet_types::IPV4 => self.recv_ipv4_packet(eth_frame.payload_mut(), sockets),
+            eth_types::ARP => self.recv_arp_packet(eth_frame.payload()),
+            eth_types::IPV4 => self.recv_ipv4_packet(eth_frame.payload_mut(), sockets),
             i => {
                 debug!("Ignoring ethernet frame with type {}.", i);
                 Err(Error::NoOp)
@@ -219,7 +219,7 @@ impl<D: Device> Service<D> {
 
                         self.send_eth_frame(eth_frame_len, |eth_frame| {
                             eth_frame.set_dst_addr(source_hw_addr);
-                            eth_frame.set_payload_type(ethernet_types::ARP);
+                            eth_frame.set_payload_type(eth_types::ARP);
                             arp_repr.serialize(eth_frame.payload_mut()).unwrap();
                         })
                     }
@@ -247,7 +247,7 @@ impl<D: Device> Service<D> {
 
                 self.send_eth_frame(eth_frame_len, |eth_frame| {
                     eth_frame.set_dst_addr(EthernetAddress::BROADCAST);
-                    eth_frame.set_payload_type(ethernet_types::ARP);
+                    eth_frame.set_payload_type(eth_types::ARP);
                     arp_repr.serialize(eth_frame.payload_mut()).unwrap();
                 })?;
 

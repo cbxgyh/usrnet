@@ -18,34 +18,44 @@ pub enum Repr {
 }
 
 impl Repr {
-    /// Attempts to deserialize a buffer into an ICMP packet.
-    pub fn deserialize<T: AsRef<[u8]>>(packet: &Packet<T>) -> Result<Repr> {
-        let header = packet.header();
-        let id = || (&header[0..2]).read_u16::<NetworkEndian>().unwrap();
-        let seq = || (&header[2..4]).read_u16::<NetworkEndian>().unwrap();
+    /// Returns the ICMP packet size needed to serialize this ICMP representation.
+    pub fn buffer_len(&self) -> usize {
+        8
+    }
 
-        match (packet.type_of(), packet.code()) {
-            (0, 0) => Ok(Repr::EchoReply {
-                id: id(),
-                seq: seq(),
-            }),
-            (8, 0) => Ok(Repr::EchoRequest {
-                id: id(),
-                seq: seq(),
-            }),
+    /// Tries to deserialize a packet into an ICMP representation.
+    pub fn deserialize<T>(packet: &Packet<T>) -> Result<Repr>
+    where
+        T: AsRef<[u8]>,
+    {
+        let header = packet.header();
+        let id = (&header[0..2]).read_u16::<NetworkEndian>().unwrap();
+        let seq = (&header[2..4]).read_u16::<NetworkEndian>().unwrap();
+
+        match (packet._type(), packet.code()) {
+            (0, 0) => Ok(Repr::EchoReply { id, seq }),
+            (8, 0) => Ok(Repr::EchoRequest { id, seq }),
             _ => Err(Error::Malformed),
         }
     }
 
-    /// Serializes the ICMP packet into a buffer.
-    pub fn serialize<T: AsRef<[u8]> + AsMut<[u8]>>(&self, packet: &mut Packet<T>) {
+    /// Serializes the ICMP representation into a packet.
+    pub fn serialize<T>(&self, packet: &mut Packet<T>)
+    where
+        T: AsRef<[u8]> + AsMut<[u8]>,
+    {
         let mut echo_reply_or_request = |type_, id, seq| {
             packet.set_type(type_);
             packet.set_code(0);
-            let mut header: [u8; 4] = [0; 4];
+            packet.set_checksum(0);
+
+            let mut header = [0; 4];
             (&mut header[0..2]).write_u16::<NetworkEndian>(id).unwrap();
             (&mut header[2..4]).write_u16::<NetworkEndian>(seq).unwrap();
             packet.set_header(header);
+
+            let checksum = packet.gen_packet_checksum();
+            packet.set_checksum(checksum);
         };
 
         match *self {
@@ -70,46 +80,48 @@ mod fields {
     pub const PAYLOAD: std::ops::RangeFrom<usize> = 8..;
 }
 
-/// ICMP packet represented as a byte buffer.
+/// View of a byte buffer as an ICMP packet.
 #[derive(Debug)]
 pub struct Packet<T: AsRef<[u8]>> {
     buffer: T,
 }
 
 impl<T: AsRef<[u8]>> Packet<T> {
-    /// Attempts to create an ICMP packet backed by a byte buffer.
-    ///
-    /// # Errors
-    ///
-    /// Causes an error if the buffer shorter than Frame::buffer_len(0) bytes.
-    pub fn try_from(buffer: T) -> Result<Packet<T>> {
-        if buffer.as_ref().len() < Self::buffer_len(0) {
-            return Err(Error::Exhausted);
+    pub const HEADER_LEN: usize = 8;
+
+    pub const MAX_PACKET_LEN: usize = 65535;
+
+    /// Tries to create an ICMP packet view over a byte buffer.
+    pub fn try_new(buffer: T) -> Result<Packet<T>> {
+        if buffer.as_ref().len() < Self::HEADER_LEN || buffer.as_ref().len() > Self::MAX_PACKET_LEN
+        {
+            Err(Error::Exhausted)
+        } else {
+            Ok(Packet { buffer })
         }
-
-        Ok(Packet { buffer })
     }
 
-    /// Returns the length of a ICMP packet with the specified payload size.
+    /// Returns the length of an ICMP packet with the specified payload size.
     pub fn buffer_len(payload_len: usize) -> usize {
-        8 + payload_len
+        Self::HEADER_LEN + payload_len
     }
 
-    /// Checks if the packet encoding is valid.
-    pub fn is_encoding_ok(&self) -> Result<()> {
-        if self.gen_checksum() != 0 {
+    /// Checks if the packet has a valid encoding. This may include checksum, field
+    /// consistency, etc. checks.
+    pub fn check_encoding(&self) -> Result<()> {
+        if self.gen_packet_checksum() != 0 {
             Err(Error::Checksum)
         } else {
             Ok(())
         }
     }
 
-    /// Calculates a checksum for the entire packet.
-    pub fn gen_checksum(&self) -> u16 {
+    /// Calculates the packet checksum.
+    pub fn gen_packet_checksum(&self) -> u16 {
         internet_checksum(self.buffer.as_ref())
     }
 
-    pub fn type_of(&self) -> u8 {
+    pub fn _type(&self) -> u8 {
         self.buffer.as_ref()[fields::TYPE]
     }
 
@@ -169,7 +181,7 @@ mod tests {
     #[test]
     fn test_packet_buffer_too_small() {
         let buffer: [u8; 7] = [0; 7];
-        assert!(match Packet::try_from(&buffer[..]) {
+        assert!(match Packet::try_new(&buffer[..]) {
             Err(Error::Exhausted) => true,
             _ => false,
         });
@@ -178,23 +190,23 @@ mod tests {
     #[test]
     fn test_packet_with_empty_payload() {
         let buffer: [u8; 8] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-        let packet = Packet::try_from(&buffer[..]).unwrap();
+        let packet = Packet::try_new(&buffer[..]).unwrap();
         assert_eq!(packet.payload().len(), 0);
     }
 
     #[test]
     fn test_packet_with_invalid_checksum() {
         let buffer: [u8; 9] = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09];
-        let packet = Packet::try_from(&buffer[..]).unwrap();
-        assert_matches!(packet.is_encoding_ok(), Err(Error::Checksum));
+        let packet = Packet::try_new(&buffer[..]).unwrap();
+        assert_matches!(packet.check_encoding(), Err(Error::Checksum));
     }
 
     #[test]
     fn test_packet_getters() {
         let buffer: [u8; 9] = [0x01, 0x02, 0xE9, 0xEf, 0x05, 0x06, 0x07, 0x08, 0x09];
-        let packet = Packet::try_from(&buffer[..]).unwrap();
-        assert_matches!(packet.is_encoding_ok(), Ok(_));
-        assert_eq!(packet.type_of(), 1);
+        let packet = Packet::try_new(&buffer[..]).unwrap();
+        assert_matches!(packet.check_encoding(), Ok(_));
+        assert_eq!(packet._type(), 1);
         assert_eq!(packet.code(), 2);
         assert_eq!(packet.checksum(), 59887);
         assert_eq!(packet.header(), [0x05, 0x06, 0x07, 0x08]);
@@ -206,7 +218,7 @@ mod tests {
         let mut buffer: [u8; 9] = [0; 9];
 
         {
-            let mut packet = Packet::try_from(&mut buffer[..]).unwrap();
+            let mut packet = Packet::try_new(&mut buffer[..]).unwrap();
             packet.set_type(1);
             packet.set_code(2);
             packet.set_checksum(772);

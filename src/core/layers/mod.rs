@@ -10,7 +10,7 @@ pub use self::arp::{
     Op as ArpOp,
 };
 pub use self::ethernet::{
-    types as ethernet_types,
+    eth_types,
     Address as EthernetAddress,
     Frame as EthernetFrame,
 };
@@ -22,5 +22,5 @@ pub use self::ipv4::{
     Address as Ipv4Address,
     Packet as Ipv4Packet,
     flags as ipv4_flags,
-    types as ipv4_types,
+    protocols as ipv4_protocols,
 };

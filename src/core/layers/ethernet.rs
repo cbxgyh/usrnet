@@ -13,7 +13,7 @@ use {
 };
 
 /// [MAC address](https://en.wikipedia.org/wiki/MAC_address) in network byte order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Address([u8; 6]);
 
 impl Address {
@@ -24,8 +24,8 @@ impl Address {
         Address(addr)
     }
 
-    /// Creates a MAC address from a network byte order slice.
-    pub fn try_from(addr: &[u8]) -> Result<Address> {
+    /// Tries to creates a MAC address from a network byte order slice.
+    pub fn try_new(addr: &[u8]) -> Result<Address> {
         if addr.len() != 6 {
             return Err(Error::Exhausted);
         }
@@ -74,7 +74,7 @@ impl std::str::FromStr for Address {
 }
 
 /// [https://en.wikipedia.org/wiki/EtherType](https://en.wikipedia.org/wiki/EtherType)
-pub mod types {
+pub mod eth_types {
     pub const IPV4: u16 = 0x800;
 
     pub const ARP: u16 = 0x806;
@@ -92,7 +92,7 @@ mod fields {
     pub const PAYLOAD: std::ops::RangeFrom<usize> = 14..;
 }
 
-/// Ethernet frame represented as a byte buffer.
+/// View of a byte buffer as an Ethernet frame.
 #[derive(Debug)]
 pub struct Frame<T: AsRef<[u8]>> {
     buffer: T,
@@ -111,70 +111,62 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> AsMut<[u8]> for Frame<T> {
 }
 
 impl<T: AsRef<[u8]>> Frame<T> {
-    /// Attempts to create an ethernet frame backed by a byte buffer.
-    ///
-    /// # Errors
-    ///
-    /// Causes an error if the buffer shorter than Frame::buffer_len(0) bytes.
-    pub fn try_from(buffer: T) -> Result<Frame<T>> {
-        if buffer.as_ref().len() < Self::buffer_len(0) {
-            return Err(Error::Exhausted);
+    pub const HEADER_LEN: usize = 14;
+
+    pub const MAX_FRAME_LEN: usize = 1518;
+
+    /// Tries to create an Ethernet frame view over a byte buffer.
+    pub fn try_new(buffer: T) -> Result<Frame<T>> {
+        if buffer.as_ref().len() < Self::HEADER_LEN || buffer.as_ref().len() > Self::MAX_FRAME_LEN {
+            Err(Error::Exhausted)
+        } else {
+            Ok(Frame { buffer })
         }
-
-        Ok(Frame { buffer })
     }
 
-    /// Returns the length of an ethernet frame with the specified payload size.
+    /// Returns the length of an Ethernet frame with the specified payload size.
     pub fn buffer_len(payload_len: usize) -> usize {
-        14 + payload_len
+        Self::HEADER_LEN + payload_len
     }
 
-    /// Gets the hardware destination address.
     pub fn dst_addr(&self) -> Address {
-        Address::try_from(&self.buffer.as_ref()[fields::DST_ADDR]).unwrap()
+        Address::try_new(&self.buffer.as_ref()[fields::DST_ADDR]).unwrap()
     }
 
-    /// Gets the hardware source address.
     pub fn src_addr(&mut self) -> Address {
-        Address::try_from(&self.buffer.as_ref()[fields::SRC_ADDR]).unwrap()
+        Address::try_new(&self.buffer.as_ref()[fields::SRC_ADDR]).unwrap()
     }
 
-    /// Returns the payload type of the frame or an error containing the unknown code.
     pub fn payload_type(&self) -> u16 {
         (&self.buffer.as_ref()[fields::PAYLOAD_TYPE])
             .read_u16::<NetworkEndian>()
             .unwrap()
     }
 
-    /// Returns an immutable view of the payload.
     pub fn payload(&self) -> &[u8] {
         &self.buffer.as_ref()[fields::PAYLOAD]
     }
 }
 
 impl<T: AsRef<[u8]> + AsMut<[u8]>> Frame<T> {
-    /// Sets the hardware destination address.
     pub fn set_dst_addr(&mut self, addr: Address) {
         (&mut self.buffer.as_mut()[fields::DST_ADDR])
             .write(addr.as_bytes())
             .unwrap();
     }
 
-    /// Sets the hardware source address.
     pub fn set_src_addr(&mut self, addr: Address) {
         (&mut self.buffer.as_mut()[fields::SRC_ADDR])
             .write(addr.as_bytes())
             .unwrap();
     }
 
-    /// Sets the payload type.
     pub fn set_payload_type(&mut self, payload_type: u16) {
         (&mut self.buffer.as_mut()[fields::PAYLOAD_TYPE])
             .write_u16::<NetworkEndian>(payload_type)
             .unwrap();
     }
 
-    /// Returns a mutable view of the payload.
     pub fn payload_mut(&mut self) -> &mut [u8] {
         &mut self.buffer.as_mut()[fields::PAYLOAD]
     }

@@ -6,7 +6,7 @@ extern crate usrnet;
 mod env;
 
 use usrnet::core::layers::{
-    ethernet_types,
+    eth_types,
     Arp,
     ArpOp,
     EthernetAddress,
@@ -50,10 +50,10 @@ fn main() {
         .as_raw_socket()
         .send(eth_frame_len)
         .map(|eth_buffer| {
-            let mut eth_frame = EthernetFrame::try_from(eth_buffer).unwrap();
+            let mut eth_frame = EthernetFrame::try_new(eth_buffer).unwrap();
             eth_frame.set_src_addr(env::default_eth_addr());
             eth_frame.set_dst_addr(EthernetAddress::BROADCAST);
-            eth_frame.set_payload_type(ethernet_types::ARP);
+            eth_frame.set_payload_type(eth_types::ARP);
             arp.serialize(eth_frame.payload_mut()).unwrap();
         })
         .unwrap();
@@ -65,8 +65,8 @@ fn main() {
     // Read frames until (1) ARP reply is received or (2) timeout.
     while std::time::Instant::now().duration_since(since) < *TIMEOUT {
         while let Ok(eth_buffer) = socket_set.socket(raw_handle).as_raw_socket().recv() {
-            let eth_frame = EthernetFrame::try_from(eth_buffer).unwrap();
-            if eth_frame.payload_type() != ethernet_types::ARP {
+            let eth_frame = EthernetFrame::try_new(eth_buffer).unwrap();
+            if eth_frame.payload_type() != eth_types::ARP {
                 continue;
             }
 

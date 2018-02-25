@@ -46,14 +46,14 @@ pub enum Arp {
 }
 
 impl Arp {
-    /// Returns the size of the ARP packet when serialized to a buffer.
+    /// Returns the buffer size needed to serialize this ARP representation.
     pub fn buffer_len(&self) -> usize {
         8 + match *self {
             Arp::EthernetIpv4 { .. } => 20,
         }
     }
 
-    /// Attempts to deserialize a buffer into an ARP packet.
+    /// Tries to deserialize a buffer into an ARP representation.
     pub fn deserialize(buffer: &[u8]) -> Result<Arp> {
         if buffer.len() < 8 {
             return Err(Error::Exhausted);
@@ -72,16 +72,14 @@ impl Arp {
 
         Ok(Arp::EthernetIpv4 {
             op: if op == 1 { Op::Request } else { Op::Reply },
-            source_hw_addr: EthernetAddress::try_from(&buffer[8..14]).unwrap(),
-            source_proto_addr: Ipv4Address::try_from(&buffer[14..18]).unwrap(),
-            target_hw_addr: EthernetAddress::try_from(&buffer[18..24]).unwrap(),
-            target_proto_addr: Ipv4Address::try_from(&buffer[24..28]).unwrap(),
+            source_hw_addr: EthernetAddress::try_new(&buffer[8..14]).unwrap(),
+            source_proto_addr: Ipv4Address::try_new(&buffer[14..18]).unwrap(),
+            target_hw_addr: EthernetAddress::try_new(&buffer[18..24]).unwrap(),
+            target_proto_addr: Ipv4Address::try_new(&buffer[24..28]).unwrap(),
         })
     }
 
-    /// Serializes the ARP packet into a buffer.
-    ///
-    /// You should ensure buffer has at least buffer_len() bytes to avoid errors.
+    /// Serializes the ARP representation into a packet.
     pub fn serialize(&self, buffer: &mut [u8]) -> Result<()> {
         if self.buffer_len() > buffer.len() {
             return Err(Error::Exhausted);
