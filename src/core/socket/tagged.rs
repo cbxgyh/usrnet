@@ -28,10 +28,14 @@ impl<'a> Socket for TaggedSocket<'a> {
 }
 
 impl<'a> TaggedSocket<'a> {
-    /// Tries to convert a tagged socket to a raw socket.
-    pub fn as_raw_socket(&mut self) -> Option<&mut RawSocket<'a>> {
+    /// Returns a reference to the underlying raw socket.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the underlying socket is not a raw socket.
+    pub fn as_raw_socket(&mut self) -> &mut RawSocket<'a> {
         match *self {
-            TaggedSocket::Raw(ref mut socket) => Some(socket),
+            TaggedSocket::Raw(ref mut socket) => socket,
         }
     }
 }

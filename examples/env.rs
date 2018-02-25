@@ -19,7 +19,9 @@ use usrnet::core::storage::{
 use usrnet::core::time::SystemEnv;
 use usrnet::linux::dev::Tap;
 
-pub type Dev = Tap;
+pub type TDev = Tap;
+
+pub type TService = Service<TDev>;
 
 static mut DEV_BUFFER: [u8; 10240] = [0; 10240];
 
@@ -32,7 +34,7 @@ pub fn default_eth_addr() -> EthernetAddress {
 }
 
 #[allow(dead_code)]
-pub fn default_dev() -> Dev {
+pub fn default_dev() -> TDev {
     let tap = Tap::new("tap0", default_ipv4_addr(), default_eth_addr());
 
     println!(
@@ -46,7 +48,7 @@ pub fn default_dev() -> Dev {
 }
 
 #[allow(dead_code)]
-pub fn default_service() -> Service<Dev> {
+pub fn default_service() -> TService {
     let dev = default_dev();
     let arp_cache = ArpCache::new(60, SystemEnv::new());
     Service::new(dev, arp_cache)
@@ -83,4 +85,11 @@ pub fn raw_socket<'a>(raw_type: RawType) -> RawSocket<'a> {
     };
 
     RawSocket::new(ring(), ring(), raw_type)
+}
+
+#[allow(dead_code)]
+pub fn tick<'a>(service: &mut TService, socket_set: &mut SocketSet) {
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    service.recv(socket_set);
+    service.send(socket_set);
 }

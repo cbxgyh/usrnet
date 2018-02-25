@@ -1,4 +1,6 @@
 extern crate env_logger;
+#[macro_use]
+extern crate lazy_static;
 extern crate usrnet;
 
 mod env;
@@ -16,7 +18,9 @@ use usrnet::core::socket::{
     TaggedSocket,
 };
 
-const IP_ADDR_PING: [u8; 4] = [10, 0, 0, 1];
+lazy_static! {
+    static ref IP_ADDR_PING: Ipv4Address = Ipv4Address::new([10, 0, 0, 1]);
+}
 
 /// Opens and brings UP a Linux TAP interface.
 fn main() {
@@ -24,21 +28,19 @@ fn main() {
 
     let mut service = env::default_service();
 
-    let ip_addr_ping = Ipv4Address::new(IP_ADDR_PING);
-
     let mut socket_set = env::socket_set();
     let raw_socket = TaggedSocket::Raw(env::raw_socket(RawType::Ipv4));
     let raw_handle = socket_set.add_socket(raw_socket).unwrap();
 
     // Send a ping request.
+    let icmp_packet_len = Icmpv4Packet::<&[u8]>::buffer_len(0);
+    let ip_packet_len = Ipv4Packet::<&[u8]>::buffer_len(icmp_packet_len);
+
     socket_set
         .socket(raw_handle)
-        .and_then(|socket| socket.as_raw_socket())
-        .map(|socket| {
-            let icmp_packet_len = Icmpv4Packet::<&[u8]>::buffer_len(0);
-            let ip_packet_len = Ipv4Packet::<&[u8]>::buffer_len(icmp_packet_len);
-
-            let ip_buffer = socket.send(ip_packet_len).unwrap();
+        .as_raw_socket()
+        .send(ip_packet_len)
+        .map(|ip_buffer| {
             let mut ip_packet = Ipv4Packet::try_from(ip_buffer).unwrap();
             ip_packet.set_ip_version(4);
             ip_packet.set_header_len(5);
@@ -49,10 +51,10 @@ fn main() {
             ip_packet.set_flags(ipv4_flags::DONT_FRAGMENT);
             ip_packet.set_fragment_offset(0);
             ip_packet.set_ttl(64);
-            ip_packet.set_protocol(ipv4_types::ICMP as u8);
+            ip_packet.set_protocol(ipv4_types::ICMP);
             ip_packet.set_header_checksum(0);
             ip_packet.set_src_addr(env::default_ipv4_addr());
-            ip_packet.set_dst_addr(ip_addr_ping);
+            ip_packet.set_dst_addr(*IP_ADDR_PING);
 
             let mut icmp_packet = Icmpv4Packet::try_from(ip_packet.payload_mut()).unwrap();
             icmp_packet.set_checksum(0);
@@ -67,19 +69,14 @@ fn main() {
 
     println!(
         "Sent ICMP ping to {}. Use tshark or tcpdump to observe.",
-        ip_addr_ping
+        *IP_ADDR_PING
     );
 
     // Loop until ping reply arrives.
     loop {
-        while let Some(ip_buffer) = socket_set
-            .socket(raw_handle)
-            .and_then(|socket| socket.as_raw_socket())
-            .and_then(|socket| socket.recv().ok())
-        {
+        while let Ok(ip_buffer) = socket_set.socket(raw_handle).as_raw_socket().recv() {
             let ip_packet = Ipv4Packet::try_from(ip_buffer).unwrap();
-
-            if ip_packet.protocol() != ipv4_types::ICMP || ip_packet.src_addr() != ip_addr_ping
+            if ip_packet.protocol() != ipv4_types::ICMP || ip_packet.src_addr() != *IP_ADDR_PING
                 || ip_packet.dst_addr() != env::default_ipv4_addr()
             {
                 continue;
@@ -93,15 +90,13 @@ fn main() {
             let icmp_repr = Icmpv4Repr::deserialize(&icmp_packet);
             match icmp_repr {
                 Ok(Icmpv4Repr::EchoReply { .. }) => {
-                    println!("Got ping response from {}!", ip_addr_ping);
-                    return;
+                    println!("Got ping response from {}!", *IP_ADDR_PING);
+                    std::process::exit(0);
                 }
                 _ => continue,
             };
         }
 
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        service.send(&mut socket_set);
-        service.recv(&mut socket_set);
+        env::tick(&mut service, &mut socket_set);
     }
 }

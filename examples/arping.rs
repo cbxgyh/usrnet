@@ -1,4 +1,6 @@
 extern crate env_logger;
+#[macro_use]
+extern crate lazy_static;
 extern crate usrnet;
 
 mod env;
@@ -16,16 +18,15 @@ use usrnet::core::socket::{
     TaggedSocket,
 };
 
-const IP_ADDR_ARP: [u8; 4] = [10, 0, 0, 1];
+lazy_static! {
+    static ref IP_ADDR_ARP: Ipv4Address = Ipv4Address::new([10, 0, 0, 1]);
 
-const TIMEOUT_MS: u64 = 1000;
+    static ref TIMEOUT: std::time::Duration = std::time::Duration::from_millis(1000);
+}
 
 /// Sends an ARP request for an IPv4 address.
 fn main() {
     env_logger::init();
-
-    let arp_ip = Ipv4Address::new(IP_ADDR_ARP);
-    let timeout = std::time::Duration::from_millis(TIMEOUT_MS);
 
     let mut service = env::default_service();
 
@@ -33,20 +34,22 @@ fn main() {
     let raw_socket = TaggedSocket::Raw(env::raw_socket(RawType::Ethernet));
     let raw_handle = socket_set.add_socket(raw_socket).unwrap();
 
+    // Send an ARP request.
     let arp = Arp::EthernetIpv4 {
         op: ArpOp::Request,
         source_hw_addr: env::default_eth_addr(),
         source_proto_addr: env::default_ipv4_addr(),
         target_hw_addr: EthernetAddress::BROADCAST,
-        target_proto_addr: arp_ip,
+        target_proto_addr: *IP_ADDR_ARP,
     };
+
+    let eth_frame_len = EthernetFrame::<&[u8]>::buffer_len(arp.buffer_len());
 
     socket_set
         .socket(raw_handle)
-        .and_then(|socket| socket.as_raw_socket())
-        .map(|socket| {
-            let eth_frame_len = EthernetFrame::<&[u8]>::buffer_len(arp.buffer_len());
-            let eth_buffer = socket.send(eth_frame_len).unwrap();
+        .as_raw_socket()
+        .send(eth_frame_len)
+        .map(|eth_buffer| {
             let mut eth_frame = EthernetFrame::try_from(eth_buffer).unwrap();
             eth_frame.set_src_addr(env::default_eth_addr());
             eth_frame.set_dst_addr(EthernetAddress::BROADCAST);
@@ -60,21 +63,9 @@ fn main() {
     let since = std::time::Instant::now();
 
     // Read frames until (1) ARP reply is received or (2) timeout.
-    loop {
-        let now = std::time::Instant::now();
-
-        if now.duration_since(since) > timeout {
-            eprintln!("Timeout!");
-            return;
-        }
-
-        while let Some(eth_buffer) = socket_set
-            .socket(raw_handle)
-            .and_then(|socket| socket.as_raw_socket())
-            .and_then(|socket| socket.recv().ok())
-        {
+    while std::time::Instant::now().duration_since(since) < *TIMEOUT {
+        while let Ok(eth_buffer) = socket_set.socket(raw_handle).as_raw_socket().recv() {
             let eth_frame = EthernetFrame::try_from(eth_buffer).unwrap();
-
             if eth_frame.payload_type() != ethernet_types::ARP {
                 continue;
             }
@@ -86,17 +77,17 @@ fn main() {
                     source_proto_addr,
                     ..
                 }) => {
-                    if op == ArpOp::Reply && source_proto_addr == arp_ip {
-                        println!("{} has MAC {}!", arp_ip, source_hw_addr);
-                        return;
+                    if op == ArpOp::Reply && source_proto_addr == *IP_ADDR_ARP {
+                        println!("{} has MAC {}!", source_proto_addr, source_hw_addr);
+                        std::process::exit(0);
                     }
                 }
                 _ => continue,
             };
         }
 
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        service.send(&mut socket_set);
-        service.recv(&mut socket_set);
+        env::tick(&mut service, &mut socket_set);
     }
+
+    eprintln!("Timeout!");
 }

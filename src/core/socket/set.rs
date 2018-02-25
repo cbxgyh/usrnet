@@ -35,14 +35,15 @@ impl<'a, 'b> SocketSet<'a, 'b> {
         }
     }
 
-    /// Attempts to return a reference to a socket with the specified handle.
-    pub fn socket(&mut self, socket_handle: usize) -> Option<&mut TaggedSocket<'b>> {
+    /// Returns a reference to a socket with the specified handle. Causes a panic
+    /// if the handle is not in use.
+    pub fn socket(&mut self, socket_handle: usize) -> &mut TaggedSocket<'b> {
         if socket_handle >= self.sockets.len() {
-            None
+            panic!("Socket handle is not in use.")
         } else {
             match self.sockets[socket_handle] {
-                Some(ref mut socket) => Some(socket),
-                _ => None,
+                Some(ref mut socket) => socket,
+                _ => panic!("Socket handle is not in use."),
             }
         }
     }
