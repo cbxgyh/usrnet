@@ -73,6 +73,8 @@ impl std::str::FromStr for Address {
 /// Safe representation for one of IPv4 protocols.
 pub enum Protocol {
     ICMP = protocols::ICMP,
+    UDP = protocols::UDP,
+    #[doc(hidden)] __Nonexhaustive,
 }
 
 /// Safe representation of an IPv4 header.
@@ -81,13 +83,13 @@ pub struct Repr {
     pub src_addr: Address,
     pub dst_addr: Address,
     pub protocol: Protocol,
-    pub payload_len: usize,
+    pub payload_len: u16,
 }
 
 impl Repr {
     /// Returns the IPv4 packet size needed to serialize this IPv4 header and payload.
     pub fn buffer_len(&self) -> usize {
-        Packet::<&[u8]>::MIN_HEADER_LEN + self.payload_len
+        Packet::<&[u8]>::MIN_HEADER_LEN + (self.payload_len as usize)
     }
 
     /// Tries to deserialize a packet into an IPv4 representation.
@@ -100,9 +102,10 @@ impl Repr {
             dst_addr: packet.dst_addr(),
             protocol: match packet.protocol() {
                 protocols::ICMP => Protocol::ICMP,
+                protocols::UDP => Protocol::UDP,
                 _ => return Err(Error::Malformed),
             },
-            payload_len: packet.payload().len(),
+            payload_len: packet.payload().len() as u16,
         })
     }
 
@@ -133,6 +136,8 @@ impl Repr {
 /// [https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml](https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml)
 pub mod protocols {
     pub const ICMP: u8 = 1;
+
+    pub const UDP: u8 = 17;
 }
 
 pub mod flags {

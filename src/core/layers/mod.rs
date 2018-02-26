@@ -2,6 +2,7 @@ pub mod arp;
 pub mod ethernet;
 pub mod icmpv4;
 pub mod ipv4;
+pub mod udp;
 
 pub use self::arp::{
     hw_types as arp_hw_types,
@@ -25,4 +26,8 @@ pub use self::ipv4::{
     Repr as Ipv4Repr,
     flags as ipv4_flags,
     protocols as ipv4_protocols,
+};
+pub use self::udp::{
+    Packet as UdpPacket,
+    Repr as UdpRepr,
 };
