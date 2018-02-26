@@ -68,6 +68,68 @@ impl std::str::FromStr for Address {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+/// Safe representation for one of IPv4 protocols.
+pub enum Protocol {
+    ICMP = protocols::ICMP,
+}
+
+/// Safe representation of an IPv4 header.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Repr {
+    pub src_addr: Address,
+    pub dst_addr: Address,
+    pub protocol: Protocol,
+    pub payload_len: usize,
+}
+
+impl Repr {
+    /// Returns the IPv4 packet size needed to serialize this IPv4 header and payload.
+    pub fn buffer_len(&self) -> usize {
+        Packet::<&[u8]>::MIN_HEADER_LEN + self.payload_len
+    }
+
+    /// Tries to deserialize a packet into an IPv4 representation.
+    pub fn deserialize<T>(packet: &Packet<T>) -> Result<Repr>
+    where
+        T: AsRef<[u8]>,
+    {
+        Ok(Repr {
+            src_addr: packet.src_addr(),
+            dst_addr: packet.dst_addr(),
+            protocol: match packet.protocol() {
+                protocols::ICMP => Protocol::ICMP,
+                _ => return Err(Error::Malformed),
+            },
+            payload_len: packet.payload().len(),
+        })
+    }
+
+    /// Serializes the IPv4 representation into a packet.
+    pub fn serialize<T>(&self, packet: &mut Packet<T>)
+    where
+        T: AsRef<[u8]> + AsMut<[u8]>,
+    {
+        packet.set_ip_version(4);
+        packet.set_header_len(5);
+        packet.set_dscp(0);
+        packet.set_ecn(0);
+        packet.set_packet_len(20 + self.payload_len as u16);
+        packet.set_identification(0);
+        packet.set_flags(flags::DONT_FRAGMENT);
+        packet.set_fragment_offset(0);
+        packet.set_ttl(64);
+        packet.set_protocol(self.protocol as u8);
+        packet.set_header_checksum(0);
+        packet.set_src_addr(self.src_addr);
+        packet.set_dst_addr(self.dst_addr);
+
+        let checksum = packet.gen_header_checksum();
+        packet.set_header_checksum(checksum);
+    }
+}
+
 /// [https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml](https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml)
 pub mod protocols {
     pub const ICMP: u8 = 1;
