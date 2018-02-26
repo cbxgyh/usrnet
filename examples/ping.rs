@@ -56,10 +56,14 @@ fn main() {
             ip_packet.set_src_addr(env::default_ipv4_addr());
             ip_packet.set_dst_addr(*IP_ADDR_PING);
 
-            let mut icmp_packet = Icmpv4Packet::try_new(ip_packet.payload_mut()).unwrap();
-            icmp_packet.set_checksum(0);
+            {
+                let mut icmp_packet = Icmpv4Packet::try_new(ip_packet.payload_mut()).unwrap();
+                icmp_repr.serialize(&mut icmp_packet);
+            }
 
-            icmp_repr.serialize(&mut icmp_packet);
+            ip_packet.set_header_checksum(0);
+            let checksum = ip_packet.gen_header_checksum();
+            ip_packet.set_header_checksum(checksum);
         })
         .unwrap();
 
