@@ -23,8 +23,6 @@ pub type TDev = Tap;
 
 pub type TService = Service<TDev>;
 
-static mut DEV_BUFFER: [u8; 10240] = [0; 10240];
-
 pub fn default_ipv4_addr() -> Ipv4Address {
     Ipv4Address::new([10, 0, 0, 103])
 }
@@ -52,17 +50,6 @@ pub fn default_service() -> TService {
     let dev = default_dev();
     let arp_cache = ArpCache::new(60, SystemEnv::new());
     Service::new(dev, arp_cache)
-}
-
-#[allow(dead_code)]
-pub fn mut_buffer(buffer_len: usize) -> &'static mut [u8] {
-    unsafe {
-        let buffer = &mut DEV_BUFFER[..buffer_len];
-        for i in 0..buffer_len {
-            buffer[i] = 0
-        }
-        buffer
-    }
 }
 
 #[allow(dead_code)]

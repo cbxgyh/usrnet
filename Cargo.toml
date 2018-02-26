@@ -21,3 +21,6 @@ name = "ping"
 
 [[example]]
 name = "tap_up"
+
+[[example]]
+name = "udp_echo_server"
