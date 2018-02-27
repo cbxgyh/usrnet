@@ -10,7 +10,8 @@ use usrnet::core::layers::{
     Icmpv4Repr,
     Ipv4Address,
     Ipv4Packet,
-    ipv4_flags,
+    Ipv4Protocol,
+    Ipv4Repr,
     ipv4_protocols,
 };
 use usrnet::core::socket::{
@@ -34,36 +35,24 @@ fn main() {
 
     // Send a ping request.
     let icmp_repr = Icmpv4Repr::EchoRequest { id: 42, seq: 1 };
-    let ip_packet_len = Ipv4Packet::<&[u8]>::buffer_len(icmp_repr.buffer_len());
+
+    let ip_repr = Ipv4Repr {
+        src_addr: env::default_ipv4_addr(),
+        dst_addr: *IP_ADDR_PING,
+        protocol: Ipv4Protocol::ICMP,
+        payload_len: icmp_repr.buffer_len() as u16,
+    };
 
     socket_set
         .socket(raw_handle)
         .as_raw_socket()
-        .send(ip_packet_len)
+        .send(ip_repr.buffer_len())
         .map(|ip_buffer| {
             let mut ip_packet = Ipv4Packet::try_new(ip_buffer).unwrap();
-            ip_packet.set_ip_version(4);
-            ip_packet.set_header_len(5);
-            ip_packet.set_dscp(0);
-            ip_packet.set_ecn(0);
-            ip_packet.set_packet_len(ip_packet_len as u16);
-            ip_packet.set_identification(0);
-            ip_packet.set_flags(ipv4_flags::DONT_FRAGMENT);
-            ip_packet.set_fragment_offset(0);
-            ip_packet.set_ttl(64);
-            ip_packet.set_protocol(ipv4_protocols::ICMP);
-            ip_packet.set_header_checksum(0);
-            ip_packet.set_src_addr(env::default_ipv4_addr());
-            ip_packet.set_dst_addr(*IP_ADDR_PING);
+            ip_repr.serialize(&mut ip_packet);
 
-            {
-                let mut icmp_packet = Icmpv4Packet::try_new(ip_packet.payload_mut()).unwrap();
-                icmp_repr.serialize(&mut icmp_packet);
-            }
-
-            ip_packet.set_header_checksum(0);
-            let checksum = ip_packet.gen_header_checksum();
-            ip_packet.set_header_checksum(checksum);
+            let mut icmp_packet = Icmpv4Packet::try_new(ip_packet.payload_mut()).unwrap();
+            icmp_repr.serialize(&mut icmp_packet);
         })
         .unwrap();
 
