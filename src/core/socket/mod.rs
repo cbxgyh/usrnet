@@ -1,8 +1,14 @@
+pub mod bindings;
 pub mod raw;
 pub mod set;
 pub mod socket;
 pub mod tagged;
 
+pub use self::bindings::{
+    AddrLease,
+    Bindings,
+    SocketAddr,
+};
 pub use self::raw::{
     RawSocket,
     RawType,

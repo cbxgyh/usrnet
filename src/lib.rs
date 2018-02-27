@@ -17,6 +17,8 @@ pub mod linux;
 pub enum Error {
     /// Indicates an error where an address could not be resolved.
     Address,
+    /// Indicates an error where a socket binding has already been assigned.
+    InUse,
     /// Indicates an error where a buffer, device, etc. is full or empty.
     Exhausted,
     /// Indicates an error where a packet or frame is malformed.
