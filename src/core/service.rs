@@ -115,15 +115,15 @@ impl<D: Device> Service<D> {
     fn recv_udp_packet(
         &mut self,
         ipv4_repr: &Ipv4Repr,
-        udp_buffer: &mut [u8],
+        udp_buffer: &[u8],
         sockets: &mut SocketSet,
     ) -> Result<()> {
-        let mut udp_packet = UdpPacket::try_new(udp_buffer)?;
+        let udp_packet = UdpPacket::try_new(udp_buffer)?;
         udp_packet.check_encoding(ipv4_repr)?;
 
         let udp_repr = UdpRepr::deserialize(&udp_packet)?;
 
-        let packet = Packet::Udp(*ipv4_repr, udp_repr, udp_packet.payload_mut());
+        let packet = Packet::Udp(*ipv4_repr, udp_repr, udp_packet.payload());
         for socket in sockets.iter_mut() {
             match socket.recv_forward(&packet) {
                 _ => {}
@@ -168,12 +168,12 @@ impl<D: Device> Service<D> {
         })
     }
 
-    fn recv_ipv4_packet(&mut self, ipv4_buffer: &mut [u8], sockets: &mut SocketSet) -> Result<()> {
-        let mut ipv4_packet = Ipv4Packet::try_new(ipv4_buffer)?;
+    fn recv_ipv4_packet(&mut self, ipv4_buffer: &[u8], sockets: &mut SocketSet) -> Result<()> {
+        let ipv4_packet = Ipv4Packet::try_new(ipv4_buffer)?;
         ipv4_packet.check_encoding()?;
 
         for socket in sockets.iter_mut() {
-            let packet = Packet::Ipv4(ipv4_packet.as_mut());
+            let packet = Packet::Ipv4(ipv4_packet.as_ref());
             match socket.recv_forward(&packet) {
                 _ => {}
             }
@@ -182,9 +182,7 @@ impl<D: Device> Service<D> {
         let ipv4_repr = Ipv4Repr::deserialize(&ipv4_packet)?;
 
         match ipv4_packet.protocol() {
-            ipv4_protocols::UDP => {
-                self.recv_udp_packet(&ipv4_repr, ipv4_packet.payload_mut(), sockets)
-            }
+            ipv4_protocols::UDP => self.recv_udp_packet(&ipv4_repr, ipv4_packet.payload(), sockets),
             i => {
                 debug!("Ignoring IPv4 packet with type {}.", i);
                 Err(Error::NoOp)
@@ -207,8 +205,8 @@ impl<D: Device> Service<D> {
         Ok(())
     }
 
-    fn recv_eth_frame(&mut self, eth_buffer: &mut [u8], sockets: &mut SocketSet) -> Result<()> {
-        let mut eth_frame = EthernetFrame::try_new(eth_buffer)?;
+    fn recv_eth_frame(&mut self, eth_buffer: &[u8], sockets: &mut SocketSet) -> Result<()> {
+        let eth_frame = EthernetFrame::try_new(eth_buffer)?;
 
         if eth_frame.dst_addr() != self.dev.ethernet_addr()
             && eth_frame.dst_addr() != EthernetAddress::BROADCAST
@@ -220,7 +218,7 @@ impl<D: Device> Service<D> {
         }
 
         for socket in sockets.iter_mut() {
-            let packet = Packet::Raw(eth_frame.as_mut());
+            let packet = Packet::Raw(eth_frame.as_ref());
             match socket.recv_forward(&packet) {
                 _ => {}
             }
@@ -228,7 +226,7 @@ impl<D: Device> Service<D> {
 
         match eth_frame.payload_type() {
             eth_types::ARP => self.recv_arp_packet(eth_frame.payload()),
-            eth_types::IPV4 => self.recv_ipv4_packet(eth_frame.payload_mut(), sockets),
+            eth_types::IPV4 => self.recv_ipv4_packet(eth_frame.payload(), sockets),
             i => {
                 debug!("Ignoring ethernet frame with type {}.", i);
                 Err(Error::NoOp)

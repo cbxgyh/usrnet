@@ -5,9 +5,9 @@ use core::layers::{
 };
 
 pub enum Packet<'a> {
-    Raw(&'a mut [u8]),
-    Ipv4(&'a mut [u8]),
-    Udp(Ipv4Repr, UdpRepr, &'a mut [u8]),
+    Raw(&'a [u8]),
+    Ipv4(&'a [u8]),
+    Udp(Ipv4Repr, UdpRepr, &'a [u8]),
     #[doc(hidden)] ___Exhaustive,
 }
 
