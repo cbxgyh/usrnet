@@ -12,6 +12,10 @@ use core::layers::{
     EthernetFrame,
     Ipv4Address,
     Ipv4Packet,
+    Ipv4Repr,
+    UdpPacket,
+    UdpRepr,
+    ipv4_protocols,
 };
 use core::socket::{
     Packet,
@@ -46,17 +50,23 @@ impl<D: Device> Service<D> {
                     Packet::Ipv4(ref ipv4_buffer) => {
                         if let Ok(ipv4_packet) = Ipv4Packet::try_new(ipv4_buffer) {
                             let ipv4_packet_len = ipv4_packet.as_ref().len();
-                            self.send_ipv4_packet(
+                            self.send_ipv4_packet_raw(
                                 ipv4_packet.dst_addr(),
                                 ipv4_packet_len,
-                                |ipv4_packet| {
-                                    ipv4_packet.as_mut().copy_from_slice(ipv4_buffer);
+                                |ipv4_buffer| {
+                                    ipv4_buffer.copy_from_slice(ipv4_packet.as_ref());
                                 },
                             )
                         } else {
                             Ok(())
                         }
                     }
+                    Packet::Udp(ref ipv4_repr, ref udp_repr, ref payload) => {
+                        self.send_udp_packet(ipv4_repr, udp_repr, |payload_| {
+                            payload_.copy_from_slice(payload);
+                        })
+                    }
+                    _ => Err(Error::NoOp),
                 }) {
                     Ok(_) => continue,
                     Err(Error::Exhausted) => break,
@@ -89,14 +99,48 @@ impl<D: Device> Service<D> {
         }
     }
 
-    fn send_ipv4_packet<F>(
+    fn send_udp_packet<F>(&mut self, ipv4_repr: &Ipv4Repr, udp_repr: &UdpRepr, f: F) -> Result<()>
+    where
+        F: FnOnce(&mut [u8]),
+    {
+        self.send_ipv4_packet_with_repr(ipv4_repr, |ipv4_payload| {
+            let mut udp_packet = UdpPacket::try_new(ipv4_payload).unwrap();
+            f(udp_packet.payload_mut());
+            // NOTE: It's important that the UDP serialization happens after the payload
+            // is written to ensure a correct checksum.
+            udp_repr.serialize(&mut udp_packet, ipv4_repr);
+        })
+    }
+
+    fn recv_udp_packet(
+        &mut self,
+        ipv4_repr: &Ipv4Repr,
+        udp_buffer: &mut [u8],
+        sockets: &mut SocketSet,
+    ) -> Result<()> {
+        let mut udp_packet = UdpPacket::try_new(udp_buffer)?;
+        udp_packet.check_encoding(ipv4_repr)?;
+
+        let udp_repr = UdpRepr::deserialize(&udp_packet)?;
+
+        let packet = Packet::Udp(*ipv4_repr, udp_repr, udp_packet.payload_mut());
+        for socket in sockets.iter_mut() {
+            match socket.recv_forward(&packet) {
+                _ => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    fn send_ipv4_packet_raw<F>(
         &mut self,
         dst_addr: Ipv4Address,
         ipv4_packet_len: usize,
         f: F,
     ) -> Result<()>
     where
-        F: FnOnce(&mut Ipv4Packet<&mut [u8]>),
+        F: FnOnce(&mut [u8]),
     {
         let eth_dst_addr = self.eth_addr_for_ip(dst_addr)?;
         let eth_frame_len = EthernetFrame::<&[u8]>::buffer_len(ipv4_packet_len);
@@ -104,24 +148,48 @@ impl<D: Device> Service<D> {
         self.send_eth_frame(eth_frame_len, |eth_frame| {
             eth_frame.set_dst_addr(eth_dst_addr);
             eth_frame.set_payload_type(eth_types::IPV4);
+            f(eth_frame.payload_mut());
+        })
+    }
 
-            let mut ipv4_packet = Ipv4Packet::try_new(eth_frame.payload_mut()).unwrap();
-            f(&mut ipv4_packet);
+    fn send_ipv4_packet_with_repr<F>(&mut self, ipv4_repr: &Ipv4Repr, f: F) -> Result<()>
+    where
+        F: FnOnce(&mut [u8]),
+    {
+        let (dst_addr, ipv4_packet_len) = (ipv4_repr.dst_addr, ipv4_repr.buffer_len());
+
+        self.send_ipv4_packet_raw(dst_addr, ipv4_packet_len, |ipv4_buffer| {
+            let mut ipv4_packet = Ipv4Packet::try_new(ipv4_buffer).unwrap();
+            // NOTE: It's important to serialize the Ipv4Repr prior to calling payload_mut()
+            // to ensure the header length is written and used when finding where the
+            // payload is located in the packet!
+            ipv4_repr.serialize(&mut ipv4_packet);
+            f(ipv4_packet.payload_mut());
         })
     }
 
     fn recv_ipv4_packet(&mut self, ipv4_buffer: &mut [u8], sockets: &mut SocketSet) -> Result<()> {
         let mut ipv4_packet = Ipv4Packet::try_new(ipv4_buffer)?;
         ipv4_packet.check_encoding()?;
-        let ipv4_packet = Packet::Ipv4(ipv4_packet.as_mut());
 
         for socket in sockets.iter_mut() {
-            match socket.recv_forward(&ipv4_packet) {
+            let packet = Packet::Ipv4(ipv4_packet.as_mut());
+            match socket.recv_forward(&packet) {
                 _ => {}
             }
         }
 
-        Ok(())
+        let ipv4_repr = Ipv4Repr::deserialize(&ipv4_packet)?;
+
+        match ipv4_packet.protocol() {
+            ipv4_protocols::UDP => {
+                self.recv_udp_packet(&ipv4_repr, ipv4_packet.payload_mut(), sockets)
+            }
+            i => {
+                debug!("Ignoring IPv4 packet with type {}.", i);
+                Err(Error::NoOp)
+            }
+        }
     }
 
     fn send_eth_frame<F>(&mut self, eth_frame_len: usize, f: F) -> Result<()>

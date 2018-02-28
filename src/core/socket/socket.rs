@@ -1,8 +1,14 @@
 use Result;
+use core::layers::{
+    Ipv4Repr,
+    UdpRepr,
+};
 
 pub enum Packet<'a> {
     Raw(&'a mut [u8]),
     Ipv4(&'a mut [u8]),
+    Udp(Ipv4Repr, UdpRepr, &'a mut [u8]),
+    #[doc(hidden)] ___Exhaustive,
 }
 
 /// A generic interface for processing socket packets.

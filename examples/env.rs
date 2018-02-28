@@ -8,9 +8,12 @@ use usrnet::core::layers::{
 };
 use usrnet::core::service::Service;
 use usrnet::core::socket::{
+    AddrLease,
     RawSocket,
     RawType,
+    SocketAddr,
     SocketSet,
+    UdpSocket,
 };
 use usrnet::core::storage::{
     Ring,
@@ -62,16 +65,31 @@ pub fn socket_set<'a, 'b: 'a>() -> SocketSet<'a, 'b> {
 }
 
 #[allow(dead_code)]
+pub fn socket_buffer<'a, F, T>(len: usize, mut f: F) -> Ring<'a, T>
+where
+    F: FnMut() -> T,
+{
+    let items: std::vec::Vec<_> = (0..len).map(|_| f()).collect();
+    Ring::from(items)
+}
+
+#[allow(dead_code)]
 pub fn raw_socket<'a>(raw_type: RawType) -> RawSocket<'a> {
-    let ring = || {
-        let mut buffers = std::vec::Vec::new();
-        for _ in 0..32 {
-            buffers.push(Slice::from(vec![0; 1500]));
-        }
-        Ring::from(buffers)
+    let buffer = || socket_buffer(32, || Slice::from(vec![0; 1500]));
+
+    RawSocket::new(buffer(), buffer(), raw_type)
+}
+
+#[allow(dead_code)]
+pub fn udp_socket<'a>(binding: AddrLease<'a>) -> UdpSocket<'a> {
+    let addr = SocketAddr {
+        addr: Ipv4Address::new([0, 0, 0, 0]),
+        port: 0,
     };
 
-    RawSocket::new(ring(), ring(), raw_type)
+    let buffer = || socket_buffer(32, || (Slice::from(vec![0; 1500]), addr.clone()));
+
+    UdpSocket::new(binding, buffer(), buffer())
 }
 
 #[allow(dead_code)]

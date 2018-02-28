@@ -107,6 +107,7 @@ impl<'a> Socket for RawSocket<'a> {
                 buffer.copy_from_slice(ipv4_buffer);
                 Ok(())
             }
+            _ => Err(Error::NoOp),
         })
     }
 }

@@ -3,6 +3,7 @@ pub mod raw;
 pub mod set;
 pub mod socket;
 pub mod tagged;
+pub mod udp;
 
 pub use self::bindings::{
     AddrLease,
@@ -19,3 +20,4 @@ pub use self::socket::{
     Socket,
 };
 pub use self::tagged::TaggedSocket;
+pub use self::udp::UdpSocket;

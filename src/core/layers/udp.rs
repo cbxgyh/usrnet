@@ -38,7 +38,7 @@ impl Repr {
     }
 
     /// Serializes the UDP header into a packet.
-    pub fn serialize<T>(&self, packet: &mut Packet<T>, payload: &[u8], ip_repr: Ipv4Repr)
+    pub fn serialize<T>(&self, packet: &mut Packet<T>, ip_repr: &Ipv4Repr)
     where
         T: AsRef<[u8]> + AsMut<[u8]>,
     {
@@ -46,7 +46,6 @@ impl Repr {
         packet.set_dst_port(self.dst_port);
         packet.set_length(self.length);
         packet.set_checksum(0);
-        packet.payload_mut().copy_from_slice(payload);
 
         let checksum = packet.gen_packet_checksum(ip_repr);
         packet.set_checksum(checksum);
@@ -107,7 +106,7 @@ impl<T: AsRef<[u8]>> Packet<T> {
 
     /// Checks if the packet has a valid encoding. This may include checksum, field
     /// consistency, etc. checks.
-    pub fn check_encoding(&self, ip_repr: Ipv4Repr) -> Result<()> {
+    pub fn check_encoding(&self, ip_repr: &Ipv4Repr) -> Result<()> {
         // NOTE: Should enforce checksum if using IPv6, optional for IPv4.
         if self.checksum() != 0 && self.gen_packet_checksum(ip_repr) != 0 {
             Err(Error::Checksum)
@@ -119,7 +118,7 @@ impl<T: AsRef<[u8]>> Packet<T> {
     }
 
     /// Calculates the packet checksum.
-    pub fn gen_packet_checksum(&self, ip_repr: Ipv4Repr) -> u16 {
+    pub fn gen_packet_checksum(&self, ip_repr: &Ipv4Repr) -> u16 {
         let mut ip_pseudo_header = [0; 12];
         (&mut ip_pseudo_header[0..4]).copy_from_slice(ip_repr.src_addr.as_bytes());
         (&mut ip_pseudo_header[4..8]).copy_from_slice(ip_repr.dst_addr.as_bytes());
@@ -226,7 +225,7 @@ mod tests {
             0x00, 0x00,
         ];
         let packet = Packet::try_new(&buffer[..]).unwrap();
-        assert_matches!(packet.check_encoding(ip_repr(16)), Err(Error::Checksum));
+        assert_matches!(packet.check_encoding(&ip_repr(16)), Err(Error::Checksum));
     }
 
     #[test]
@@ -236,7 +235,7 @@ mod tests {
             0x00, 0x00,
         ];
         let packet = Packet::try_new(&buffer[..]).unwrap();
-        assert_matches!(packet.check_encoding(ip_repr(16)), Err(Error::Malformed));
+        assert_matches!(packet.check_encoding(&ip_repr(16)), Err(Error::Malformed));
     }
 
     #[test]
@@ -247,7 +246,7 @@ mod tests {
         ];
 
         let packet = Packet::try_new(&buffer[..]).unwrap();
-        assert_matches!(packet.check_encoding(ip_repr(16)), Ok(_));
+        assert_matches!(packet.check_encoding(&ip_repr(16)), Ok(_));
         assert_eq!(1024, packet.src_port());
         assert_eq!(2048, packet.dst_port());
         assert_eq!(16, packet.length());
