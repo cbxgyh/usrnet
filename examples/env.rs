@@ -77,7 +77,7 @@ where
 pub fn raw_socket<'a>(raw_type: RawType) -> RawSocket<'a> {
     let buffer = || socket_buffer(32, || Slice::from(vec![0; 1500]));
 
-    RawSocket::new(buffer(), buffer(), raw_type)
+    RawSocket::new(raw_type, buffer(), buffer())
 }
 
 #[allow(dead_code)]

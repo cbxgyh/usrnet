@@ -20,50 +20,9 @@ pub enum RawType {
 /// Socket for sending and receiving raw ethernet or IP packets.
 #[derive(Debug)]
 pub struct RawSocket<'a> {
+    raw_type: RawType,
     send_buffer: Ring<'a, Slice<'a, u8>>,
     recv_buffer: Ring<'a, Slice<'a, u8>>,
-    raw_type: RawType,
-}
-
-impl<'a> RawSocket<'a> {
-    /// Creates a socket with the provided send and receive buffers.
-    pub fn new(
-        send_buffer: Ring<'a, Slice<'a, u8>>,
-        recv_buffer: Ring<'a, Slice<'a, u8>>,
-        raw_type: RawType,
-    ) -> RawSocket<'a> {
-        RawSocket {
-            send_buffer,
-            recv_buffer,
-            raw_type,
-        }
-    }
-
-    /// Enqueues a packet with buffer_len bytes for sending.
-    ///
-    /// # Errors
-    ///
-    /// An Error::Exhausted occurs if the send buffer is full.
-    pub fn send(&mut self, buffer_len: usize) -> Result<&mut [u8]> {
-        self.send_buffer.enqueue_maybe(|buffer| {
-            buffer.try_resize(buffer_len, 0)?;
-
-            for i in 0..buffer_len {
-                buffer[i] = 0;
-            }
-
-            return Ok(&mut buffer[..buffer_len]);
-        })
-    }
-
-    /// Dequeues a received packet from the socket.
-    ///
-    /// # Errors
-    ///
-    /// An Error::Exhausted occurs if the receive buffer is full.
-    pub fn recv(&mut self) -> Result<&[u8]> {
-        self.recv_buffer.dequeue_with(|buffer| &buffer[..])
-    }
 }
 
 impl<'a> Socket for RawSocket<'a> {
@@ -109,5 +68,46 @@ impl<'a> Socket for RawSocket<'a> {
             }
             _ => Err(Error::NoOp),
         })
+    }
+}
+
+impl<'a> RawSocket<'a> {
+    /// Creates a socket with the provided send and receive buffers.
+    pub fn new(
+        raw_type: RawType,
+        send_buffer: Ring<'a, Slice<'a, u8>>,
+        recv_buffer: Ring<'a, Slice<'a, u8>>,
+    ) -> RawSocket<'a> {
+        RawSocket {
+            raw_type,
+            send_buffer,
+            recv_buffer,
+        }
+    }
+
+    /// Enqueues a packet with buffer_len bytes for sending.
+    ///
+    /// # Errors
+    ///
+    /// An Error::Exhausted occurs if the send buffer is full.
+    pub fn send(&mut self, buffer_len: usize) -> Result<&mut [u8]> {
+        self.send_buffer.enqueue_maybe(|buffer| {
+            buffer.try_resize(buffer_len, 0)?;
+
+            for i in 0..buffer_len {
+                buffer[i] = 0;
+            }
+
+            return Ok(&mut buffer[..buffer_len]);
+        })
+    }
+
+    /// Dequeues a received packet from the socket.
+    ///
+    /// # Errors
+    ///
+    /// An Error::Exhausted occurs if the receive buffer is full.
+    pub fn recv(&mut self) -> Result<&[u8]> {
+        self.recv_buffer.dequeue_with(|buffer| &buffer[..])
     }
 }
