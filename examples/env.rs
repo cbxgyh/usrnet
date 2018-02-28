@@ -1,7 +1,6 @@
 use std;
 
 use usrnet::core::arp_cache::ArpCache;
-use usrnet::core::dev::Device;
 use usrnet::core::layers::{
     EthernetAddress,
     Ipv4Address,
@@ -20,32 +19,87 @@ use usrnet::core::storage::{
     Slice,
 };
 use usrnet::core::time::SystemEnv;
-use usrnet::linux::dev::Tap;
 
-pub type TDev = Tap;
+#[cfg(target_os = "linux")]
+mod dev {
+    use usrnet::core::dev::Device;
+    use usrnet::linux::dev::Tap;
+
+    pub type TDev = Tap;
+
+    #[allow(dead_code)]
+    pub fn default_dev() -> TDev {
+        let tap = Tap::new(
+            "tap0",
+            super::default_ipv4_addr(),
+            super::default_eth_addr(),
+        );
+
+        println!(
+            "Device: (MTU = {}, IPv4 = {}, MAC = {})",
+            tap.max_transmission_unit(),
+            tap.ipv4_addr(),
+            tap.ethernet_addr()
+        );
+
+        tap
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+mod dev {
+    use usrnet::Result;
+    use usrnet::core::dev::Device;
+    use usrnet::core::layers::{
+        EthernetAddress,
+        Ipv4Address,
+    };
+
+    pub struct TDev {}
+
+    impl Device for TDev {
+        fn send(&mut self, _: &[u8]) -> Result<()> {
+            unimplemented!()
+        }
+
+        fn recv(&mut self, _: &mut [u8]) -> Result<usize> {
+            unimplemented!()
+        }
+
+        fn max_transmission_unit(&self) -> usize {
+            unimplemented!()
+        }
+
+        fn ipv4_addr(&self) -> Ipv4Address {
+            unimplemented!()
+        }
+
+        fn ethernet_addr(&self) -> EthernetAddress {
+            unimplemented!()
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn default_dev() -> TDev {
+        panic!("Sorry, examples are only supported on Linux.");
+    }
+}
+
+pub use self::dev::{
+    default_dev,
+    TDev,
+};
 
 pub type TService = Service<TDev>;
 
+#[allow(dead_code)]
 pub fn default_ipv4_addr() -> Ipv4Address {
     Ipv4Address::new([10, 0, 0, 103])
 }
 
+#[allow(dead_code)]
 pub fn default_eth_addr() -> EthernetAddress {
     EthernetAddress::new([0, 1, 2, 3, 4, 5])
-}
-
-#[allow(dead_code)]
-pub fn default_dev() -> TDev {
-    let tap = Tap::new("tap0", default_ipv4_addr(), default_eth_addr());
-
-    println!(
-        "Device: (MTU = {}, IPv4 = {}, MAC = {})",
-        tap.max_transmission_unit(),
-        tap.ipv4_addr(),
-        tap.ethernet_addr()
-    );
-
-    tap
 }
 
 #[allow(dead_code)]
