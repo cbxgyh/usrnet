@@ -39,6 +39,35 @@ impl<T: Env> ArpCache<T> {
 
     /// Lookup the ethernet address for an IPv4 address.
     pub fn eth_addr_for_ip(&mut self, ipv4_addr: Ipv4Address) -> Option<EthernetAddress> {
+        self.expire_eth_addr();
+
+        match self.entries.get(&ipv4_addr) {
+            Some(entry) => Some(entry.eth_addr),
+            _ => None,
+        }
+    }
+
+    /// Create or update the ethernet address mapping for an IPv4 address.
+    pub fn set_eth_addr_for_ip(&mut self, ipv4_addr: Ipv4Address, eth_addr: EthernetAddress) {
+        self.expire_eth_addr();
+
+        let in_cache_since = self.time_env.now_instant();
+
+        if self.entries.len() == 0 {
+            self.in_cache_since_min = in_cache_since;
+        }
+
+        self.entries.insert(
+            ipv4_addr,
+            Entry {
+                eth_addr,
+                in_cache_since,
+            },
+        );
+    }
+
+    /// Purge Ethernet address entries translations that have expired.
+    fn expire_eth_addr(&mut self) {
         let now = self.time_env.now_instant();
 
         if now > self.in_cache_since_min + self.expiration {
@@ -54,28 +83,6 @@ impl<T: Env> ArpCache<T> {
                 None => now,
             }
         }
-
-        match self.entries.get(&ipv4_addr) {
-            Some(entry) => Some(entry.eth_addr),
-            _ => None,
-        }
-    }
-
-    /// Create or update the ethernet address mapping for an IPv4 address.
-    pub fn set_eth_addr_for_ip(&mut self, ipv4_addr: Ipv4Address, eth_addr: EthernetAddress) {
-        let in_cache_since = self.time_env.now_instant();
-
-        if self.entries.len() == 0 {
-            self.in_cache_since_min = in_cache_since;
-        }
-
-        self.entries.insert(
-            ipv4_addr,
-            Entry {
-                eth_addr,
-                in_cache_since,
-            },
-        );
     }
 
     #[cfg(test)]
