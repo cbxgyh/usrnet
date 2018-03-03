@@ -1,2 +1,8 @@
 imports_indent = "Block"
 imports_layout = "Vertical"
+reorder_extern_crates = true
+reorder_extern_crates_in_group = true
+reorder_imports = true
+reorder_imports_in_group = true
+spaces_around_ranges = true
+wrap_comments = true

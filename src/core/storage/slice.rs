@@ -1,8 +1,8 @@
-use std;
 use std::ops::{
     Deref,
     DerefMut,
 };
+use std::vec::Vec;
 
 use {
     Error,
@@ -14,7 +14,7 @@ use {
 #[derive(Debug)]
 pub enum Slice<'a, T: 'a> {
     Borrow(&'a mut [T], usize),
-    Owned(std::vec::Vec<T>),
+    Owned(Vec<T>),
 }
 
 impl<'a, T> From<&'a mut [T]> for Slice<'a, T> {
@@ -24,8 +24,8 @@ impl<'a, T> From<&'a mut [T]> for Slice<'a, T> {
     }
 }
 
-impl<'a, T> From<std::vec::Vec<T>> for Slice<'a, T> {
-    fn from(vec: std::vec::Vec<T>) -> Self {
+impl<'a, T> From<Vec<T>> for Slice<'a, T> {
+    fn from(vec: Vec<T>) -> Self {
         Slice::Owned(vec)
     }
 }
@@ -35,7 +35,7 @@ impl<'a, T> Deref for Slice<'a, T> {
 
     fn deref(&self) -> &[T] {
         match *self {
-            Slice::Borrow(ref slice, len) => &slice[..len],
+            Slice::Borrow(ref slice, len) => &slice[.. len],
             Slice::Owned(ref vec) => vec.as_slice(),
         }
     }
@@ -44,7 +44,7 @@ impl<'a, T> Deref for Slice<'a, T> {
 impl<'a, T> DerefMut for Slice<'a, T> {
     fn deref_mut(&mut self) -> &mut [T] {
         match *self {
-            Slice::Borrow(ref mut slice, len) => &mut slice[..len],
+            Slice::Borrow(ref mut slice, len) => &mut slice[.. len],
             Slice::Owned(ref mut vec) => vec.as_mut_slice(),
         }
     }

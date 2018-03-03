@@ -1,5 +1,11 @@
-use std;
+use std::fmt::{
+    Display,
+    Formatter,
+    Result as FmtResult,
+};
 use std::io::Write;
+use std::result::Result as StdResult;
+use std::str::FromStr;
 
 use byteorder::{
     NetworkEndian,
@@ -34,23 +40,24 @@ impl Address {
         Ok(Address(_addr))
     }
 
-    /// Returns a reference to the network byte order representation of the address.
+    /// Returns a reference to the network byte order representation of the
+    /// address.
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 }
 
-impl std::fmt::Display for Address {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for Address {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         write!(f, "{}.{}.{}.{}", self.0[0], self.0[1], self.0[2], self.0[3])
     }
 }
 
-impl std::str::FromStr for Address {
+impl FromStr for Address {
     type Err = ();
 
     /// Parses an Ipv4 address from an A.B.C.D style string.
-    fn from_str(addr: &str) -> std::result::Result<Address, Self::Err> {
+    fn from_str(addr: &str) -> StdResult<Address, Self::Err> {
         let (bytes, unknown): (Vec<_>, Vec<_>) = addr.split(".")
             .map(|token| token.parse::<u8>())
             .partition(|byte| !byte.is_err());
@@ -87,7 +94,8 @@ pub struct Repr {
 }
 
 impl Repr {
-    /// Returns the IPv4 packet size needed to serialize this IPv4 header and payload.
+    /// Returns the IPv4 packet size needed to serialize this IPv4 header and
+    /// payload.
     pub fn buffer_len(&self) -> usize {
         Packet::<&[u8]>::MIN_HEADER_LEN + (self.payload_len as usize)
     }
@@ -148,29 +156,29 @@ pub mod flags {
 
 /// [https://en.wikipedia.org/wiki/IPv4](https://en.wikipedia.org/wiki/IPv4)
 mod fields {
-    use std;
+    use std::ops::Range;
 
     pub const IP_VERSION_AND_HEADER_LEN: usize = 0;
 
     pub const DSCP_AND_ECN: usize = 1;
 
-    pub const PACKET_LEN: std::ops::Range<usize> = 2..4;
+    pub const PACKET_LEN: Range<usize> = 2 .. 4;
 
-    pub const IDENTIFICATION: std::ops::Range<usize> = 4..6;
+    pub const IDENTIFICATION: Range<usize> = 4 .. 6;
 
     pub const FLAGS: usize = 6;
 
-    pub const FRAG_OFFSET: std::ops::Range<usize> = 6..8;
+    pub const FRAG_OFFSET: Range<usize> = 6 .. 8;
 
     pub const TTL: usize = 8;
 
     pub const PROTOCOL: usize = 9;
 
-    pub const CHECKSUM: std::ops::Range<usize> = 10..12;
+    pub const CHECKSUM: Range<usize> = 10 .. 12;
 
-    pub const SRC_ADDR: std::ops::Range<usize> = 12..16;
+    pub const SRC_ADDR: Range<usize> = 12 .. 16;
 
-    pub const DST_ADDR: std::ops::Range<usize> = 16..20;
+    pub const DST_ADDR: Range<usize> = 16 .. 20;
 }
 
 /// View of a byte buffer as an IPv4 packet.
@@ -227,7 +235,7 @@ impl<T: AsRef<[u8]>> Packet<T> {
     /// Calculates the header checksum.
     pub fn gen_header_checksum(&self) -> u16 {
         let header_len = (self.header_len() * 4) as usize;
-        internet_checksum(&self.buffer.as_ref()[..header_len])
+        internet_checksum(&self.buffer.as_ref()[.. header_len])
     }
 
     pub fn ip_version(&self) -> u8 {
@@ -295,7 +303,7 @@ impl<T: AsRef<[u8]>> Packet<T> {
     pub fn payload(&self) -> &[u8] {
         let header_len = (self.header_len() * 4) as usize;
         let packet_len = self.packet_len() as usize;
-        &self.buffer.as_ref()[header_len..packet_len]
+        &self.buffer.as_ref()[header_len .. packet_len]
     }
 }
 
@@ -374,7 +382,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Packet<T> {
     pub fn payload_mut(&mut self) -> &mut [u8] {
         let header_len = (self.header_len() * 4) as usize;
         let packet_len = self.packet_len() as usize;
-        &mut self.buffer.as_mut()[header_len..packet_len]
+        &mut self.buffer.as_mut()[header_len .. packet_len]
     }
 }
 

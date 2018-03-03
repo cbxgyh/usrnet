@@ -1,5 +1,7 @@
-use std;
-use std::io::Write;
+use std::io::{
+    Cursor,
+    Write,
+};
 
 use byteorder::{
     NetworkEndian,
@@ -59,7 +61,7 @@ impl Arp {
             return Err(Error::Exhausted);
         }
 
-        let mut reader = std::io::Cursor::new(buffer);
+        let mut reader = Cursor::new(buffer);
         let hw_type = reader.read_u16::<NetworkEndian>().unwrap();
         let proto_type = reader.read_u16::<NetworkEndian>().unwrap();
         let _ = reader.read_u8().unwrap(); // Skip address sizes.
@@ -72,10 +74,10 @@ impl Arp {
 
         Ok(Arp::EthernetIpv4 {
             op: if op == 1 { Op::Request } else { Op::Reply },
-            source_hw_addr: EthernetAddress::try_new(&buffer[8..14]).unwrap(),
-            source_proto_addr: Ipv4Address::try_new(&buffer[14..18]).unwrap(),
-            target_hw_addr: EthernetAddress::try_new(&buffer[18..24]).unwrap(),
-            target_proto_addr: Ipv4Address::try_new(&buffer[24..28]).unwrap(),
+            source_hw_addr: EthernetAddress::try_new(&buffer[8 .. 14]).unwrap(),
+            source_proto_addr: Ipv4Address::try_new(&buffer[14 .. 18]).unwrap(),
+            target_hw_addr: EthernetAddress::try_new(&buffer[18 .. 24]).unwrap(),
+            target_proto_addr: Ipv4Address::try_new(&buffer[24 .. 28]).unwrap(),
         })
     }
 
@@ -93,7 +95,7 @@ impl Arp {
                 ref target_hw_addr,
                 ref target_proto_addr,
             } => {
-                let mut writer = std::io::Cursor::new(buffer);
+                let mut writer = Cursor::new(buffer);
                 writer
                     .write_u16::<NetworkEndian>(hw_types::ETHERNET)
                     .unwrap();

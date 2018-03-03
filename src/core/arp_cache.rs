@@ -1,4 +1,8 @@
-use std;
+use std::collections::HashMap;
+use std::time::{
+    Duration,
+    Instant,
+};
 
 use core::layers::{
     EthernetAddress,
@@ -11,7 +15,7 @@ use core::time::{
 
 struct Entry {
     eth_addr: EthernetAddress,
-    in_cache_since: std::time::Instant,
+    in_cache_since: Instant,
 }
 
 /// Maintains an expiring set of IPv4 -> ethernet address mappings.
@@ -19,9 +23,9 @@ pub struct ArpCache<T = SystemEnv>
 where
     T: Env,
 {
-    entries: std::collections::HashMap<Ipv4Address, Entry>,
-    expiration: std::time::Duration,
-    in_cache_since_min: std::time::Instant,
+    entries: HashMap<Ipv4Address, Entry>,
+    expiration: Duration,
+    in_cache_since_min: Instant,
     time_env: T,
 }
 
@@ -30,9 +34,9 @@ impl<T: Env> ArpCache<T> {
     /// expiration_in_secs seconds.
     pub fn new(expiration_in_secs: u64, time_env: T) -> ArpCache<T> {
         ArpCache {
-            entries: std::collections::HashMap::new(),
-            expiration: std::time::Duration::from_secs(expiration_in_secs),
-            in_cache_since_min: std::time::Instant::now(),
+            entries: HashMap::new(),
+            expiration: Duration::from_secs(expiration_in_secs),
+            in_cache_since_min: Instant::now(),
             time_env: time_env,
         }
     }
@@ -93,8 +97,8 @@ impl<T: Env> ArpCache<T> {
 
 #[cfg(test)]
 mod tests {
-    use core::time::MockEnv;
     use super::*;
+    use core::time::MockEnv;
 
     fn arp_cache() -> ArpCache<MockEnv> {
         ArpCache::new(60, MockEnv::new())
@@ -121,7 +125,7 @@ mod tests {
         arp_cache.set_eth_addr_for_ip(ipv4(0), eth(0));
         assert_eq!(arp_cache.eth_addr_for_ip(ipv4(0)).unwrap(), eth(0));
 
-        arp_cache.time_env().now += std::time::Duration::from_secs(60);
+        arp_cache.time_env().now += Duration::from_secs(60);
         assert_eq!(arp_cache.eth_addr_for_ip(ipv4(0)).unwrap(), eth(0));
     }
 
@@ -132,7 +136,7 @@ mod tests {
         arp_cache.set_eth_addr_for_ip(ipv4(0), eth(0));
         assert_eq!(arp_cache.eth_addr_for_ip(ipv4(0)).unwrap(), eth(0));
 
-        arp_cache.time_env().now += std::time::Duration::from_secs(61);
+        arp_cache.time_env().now += Duration::from_secs(61);
         assert_matches!(arp_cache.eth_addr_for_ip(ipv4(0)), None);
     }
 
@@ -143,15 +147,15 @@ mod tests {
         arp_cache.set_eth_addr_for_ip(ipv4(0), eth(0));
         assert_eq!(arp_cache.eth_addr_for_ip(ipv4(0)).unwrap(), eth(0));
 
-        arp_cache.time_env().now += std::time::Duration::from_secs(60);
+        arp_cache.time_env().now += Duration::from_secs(60);
         assert_eq!(arp_cache.eth_addr_for_ip(ipv4(0)).unwrap(), eth(0));
 
         arp_cache.set_eth_addr_for_ip(ipv4(0), eth(0));
-        arp_cache.time_env().now += std::time::Duration::from_secs(60);
+        arp_cache.time_env().now += Duration::from_secs(60);
 
         assert_eq!(arp_cache.eth_addr_for_ip(ipv4(0)).unwrap(), eth(0));
 
-        arp_cache.time_env().now += std::time::Duration::from_secs(1);
+        arp_cache.time_env().now += Duration::from_secs(1);
         assert_matches!(arp_cache.eth_addr_for_ip(ipv4(0)), None);
     }
 
@@ -160,16 +164,16 @@ mod tests {
         let mut arp_cache = arp_cache();
 
         arp_cache.set_eth_addr_for_ip(ipv4(0), eth(0));
-        arp_cache.time_env().now += std::time::Duration::from_secs(30);
+        arp_cache.time_env().now += Duration::from_secs(30);
         arp_cache.set_eth_addr_for_ip(ipv4(1), eth(1));
         assert_eq!(arp_cache.eth_addr_for_ip(ipv4(0)).unwrap(), eth(0));
         assert_eq!(arp_cache.eth_addr_for_ip(ipv4(1)).unwrap(), eth(1));
 
-        arp_cache.time_env().now += std::time::Duration::from_secs(31);
+        arp_cache.time_env().now += Duration::from_secs(31);
         assert_matches!(arp_cache.eth_addr_for_ip(ipv4(0)), None);
         assert_eq!(arp_cache.eth_addr_for_ip(ipv4(1)).unwrap(), eth(1));
 
-        arp_cache.time_env().now += std::time::Duration::from_secs(30);
+        arp_cache.time_env().now += Duration::from_secs(30);
         assert_matches!(arp_cache.eth_addr_for_ip(ipv4(0)), None);
         assert_matches!(arp_cache.eth_addr_for_ip(ipv4(1)), None);
     }

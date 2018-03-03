@@ -3,6 +3,9 @@ extern crate usrnet;
 
 mod env;
 
+use std::thread;
+use std::time::Duration;
+
 /// Opens and brings UP a Linux TAP interface.
 fn main() {
     env_logger::init();
@@ -10,6 +13,6 @@ fn main() {
     let mut _dev = env::default_dev();
 
     loop {
-        std::thread::sleep(std::time::Duration::from_millis(1000));
+        thread::sleep(Duration::from_millis(1000));
     }
 }

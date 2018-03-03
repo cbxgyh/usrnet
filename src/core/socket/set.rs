@@ -1,4 +1,5 @@
-use std;
+use std::iter::Iterator;
+use std::slice::IterMut as SliceIterMut;
 
 use {
     Error,
@@ -21,7 +22,7 @@ impl<'a, 'b> SocketSet<'a, 'b> {
     /// Adds a socket and returns a stable handle.
     pub fn add_socket(&mut self, socket: TaggedSocket<'b>) -> Result<usize> {
         let handle = {
-            (0..self.sockets.len())
+            (0 .. self.sockets.len())
                 .filter(|i| self.sockets[*i].is_none())
                 .next()
         };
@@ -57,10 +58,10 @@ impl<'a, 'b> SocketSet<'a, 'b> {
 }
 
 pub struct SocketIter<'a, 'b: 'a> {
-    slice_iter: std::slice::IterMut<'a, Option<TaggedSocket<'b>>>,
+    slice_iter: SliceIterMut<'a, Option<TaggedSocket<'b>>>,
 }
 
-impl<'a, 'b, 'c> std::iter::Iterator for SocketIter<'a, 'b> {
+impl<'a, 'b, 'c> Iterator for SocketIter<'a, 'b> {
     type Item = &'a mut TaggedSocket<'b>;
 
     fn next(&mut self) -> Option<&'a mut TaggedSocket<'b>> {

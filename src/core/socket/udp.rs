@@ -101,13 +101,13 @@ impl<'a> UdpSocket<'a> {
             .enqueue_maybe(|&mut (ref mut buffer, ref mut addr_)| {
                 buffer.try_resize(buffer_len, 0)?;
 
-                for i in 0..buffer_len {
+                for i in 0 .. buffer_len {
                     buffer[i] = 0;
                 }
 
                 *addr_ = addr;
 
-                return Ok(&mut buffer[..buffer_len]);
+                return Ok(&mut buffer[.. buffer_len]);
             })
     }
 

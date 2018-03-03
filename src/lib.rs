@@ -13,6 +13,9 @@ pub mod core;
 #[cfg(target_os = "linux")]
 pub mod linux;
 
+use std::io::Error as IOError;
+use std::result::Result as StdResult;
+
 #[derive(Debug)]
 pub enum Error {
     /// Indicates an error where an address could not be resolved.
@@ -28,13 +31,13 @@ pub enum Error {
     /// Indicates an error where the operation was not performed.
     NoOp,
     /// Indicates a generic IO error.
-    IO(std::io::Error),
+    IO(IOError),
 }
 
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Error {
+impl From<IOError> for Error {
+    fn from(err: IOError) -> Error {
         Error::IO(err)
     }
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = StdResult<T, Error>;

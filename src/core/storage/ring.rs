@@ -1,4 +1,4 @@
-use std;
+use std::vec::Vec;
 
 use {
     Error,
@@ -24,8 +24,8 @@ impl<'a, T> From<&'a mut [T]> for Ring<'a, T> {
     }
 }
 
-impl<'a, T> From<std::vec::Vec<T>> for Ring<'a, T> {
-    fn from(vec: std::vec::Vec<T>) -> Ring<'a, T> {
+impl<'a, T> From<Vec<T>> for Ring<'a, T> {
+    fn from(vec: Vec<T>) -> Ring<'a, T> {
         Ring {
             buffer: Slice::from(vec),
             begin: 0,

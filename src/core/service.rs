@@ -86,13 +86,14 @@ impl<D: Device> Service<D> {
 
         loop {
             match self.dev.recv(&mut eth_buffer) {
-                Ok(buffer_len) => match self.recv_eth_frame(&mut eth_buffer[..buffer_len], sockets)
-                {
-                    Ok(_) => continue,
-                    Err(Error::Address) => continue,
-                    Err(Error::NoOp) => continue,
-                    Err(err) => warn!("Error processing ethernet with {:?}", err),
-                },
+                Ok(buffer_len) => {
+                    match self.recv_eth_frame(&mut eth_buffer[.. buffer_len], sockets) {
+                        Ok(_) => continue,
+                        Err(Error::Address) => continue,
+                        Err(Error::NoOp) => continue,
+                        Err(err) => warn!("Error processing ethernet with {:?}", err),
+                    }
+                }
                 Err(Error::Exhausted) => break,
                 Err(err) => warn!("Error receiving ethernet with {:?}", err),
             };

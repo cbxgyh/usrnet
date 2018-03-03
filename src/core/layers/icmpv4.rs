@@ -18,7 +18,8 @@ pub enum Repr {
 }
 
 impl Repr {
-    /// Returns the ICMP packet size needed to serialize this ICMP representation.
+    /// Returns the ICMP packet size needed to serialize this ICMP
+    /// representation.
     pub fn buffer_len(&self) -> usize {
         8
     }
@@ -29,8 +30,8 @@ impl Repr {
         T: AsRef<[u8]>,
     {
         let header = packet.header();
-        let id = (&header[0..2]).read_u16::<NetworkEndian>().unwrap();
-        let seq = (&header[2..4]).read_u16::<NetworkEndian>().unwrap();
+        let id = (&header[0 .. 2]).read_u16::<NetworkEndian>().unwrap();
+        let seq = (&header[2 .. 4]).read_u16::<NetworkEndian>().unwrap();
 
         match (packet._type(), packet.code()) {
             (0, 0) => Ok(Repr::EchoReply { id, seq }),
@@ -50,8 +51,12 @@ impl Repr {
             packet.set_checksum(0);
 
             let mut header = [0; 4];
-            (&mut header[0..2]).write_u16::<NetworkEndian>(id).unwrap();
-            (&mut header[2..4]).write_u16::<NetworkEndian>(seq).unwrap();
+            (&mut header[0 .. 2])
+                .write_u16::<NetworkEndian>(id)
+                .unwrap();
+            (&mut header[2 .. 4])
+                .write_u16::<NetworkEndian>(seq)
+                .unwrap();
             packet.set_header(header);
 
             let checksum = packet.gen_packet_checksum();
@@ -67,17 +72,20 @@ impl Repr {
 
 /// [https://en.wikipedia.org/wiki/Internet_Control_Message_Protocol](https://en.wikipedia.org/wiki/Internet_Control_Message_Protocol)
 mod fields {
-    use std;
+    use std::ops::{
+        Range,
+        RangeFrom,
+    };
 
     pub const TYPE: usize = 0;
 
     pub const CODE: usize = 1;
 
-    pub const CHECKSUM: std::ops::Range<usize> = 2..4;
+    pub const CHECKSUM: Range<usize> = 2 .. 4;
 
-    pub const HEADER: std::ops::Range<usize> = 4..8;
+    pub const HEADER: Range<usize> = 4 .. 8;
 
-    pub const PAYLOAD: std::ops::RangeFrom<usize> = 8..;
+    pub const PAYLOAD: RangeFrom<usize> = 8 ..;
 }
 
 /// View of a byte buffer as an ICMP packet.

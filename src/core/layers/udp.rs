@@ -20,7 +20,8 @@ pub struct Repr {
 }
 
 impl Repr {
-    /// Returns the UDP packet size needed to serialize this UDP header and payload.
+    /// Returns the UDP packet size needed to serialize this UDP header and
+    /// payload.
     pub fn buffer_len(&self) -> usize {
         self.length as usize
     }
@@ -54,15 +55,15 @@ impl Repr {
 
 /// [https://en.wikipedia.org/wiki/User_Datagram_Protocol](https://en.wikipedia.org/wiki/User_Datagram_Protocol)
 mod fields {
-    use std;
+    use std::ops::Range;
 
-    pub const SRC_PORT: std::ops::Range<usize> = 0..2;
+    pub const SRC_PORT: Range<usize> = 0 .. 2;
 
-    pub const DST_PORT: std::ops::Range<usize> = 2..4;
+    pub const DST_PORT: Range<usize> = 2 .. 4;
 
-    pub const LENGTH: std::ops::Range<usize> = 4..6;
+    pub const LENGTH: Range<usize> = 4 .. 6;
 
-    pub const CHECKSUM: std::ops::Range<usize> = 6..8;
+    pub const CHECKSUM: Range<usize> = 6 .. 8;
 }
 
 /// View of a byte buffer as a UDP packet.
@@ -120,10 +121,10 @@ impl<T: AsRef<[u8]>> Packet<T> {
     /// Calculates the packet checksum.
     pub fn gen_packet_checksum(&self, ip_repr: &Ipv4Repr) -> u16 {
         let mut ip_pseudo_header = [0; 12];
-        (&mut ip_pseudo_header[0..4]).copy_from_slice(ip_repr.src_addr.as_bytes());
-        (&mut ip_pseudo_header[4..8]).copy_from_slice(ip_repr.dst_addr.as_bytes());
+        (&mut ip_pseudo_header[0 .. 4]).copy_from_slice(ip_repr.src_addr.as_bytes());
+        (&mut ip_pseudo_header[4 .. 8]).copy_from_slice(ip_repr.dst_addr.as_bytes());
         ip_pseudo_header[9] = ip_repr.protocol as u8;
-        (&mut ip_pseudo_header[10..12])
+        (&mut ip_pseudo_header[10 .. 12])
             .write_u16::<NetworkEndian>(ip_repr.payload_len)
             .unwrap();
 
@@ -159,7 +160,7 @@ impl<T: AsRef<[u8]>> Packet<T> {
     }
 
     pub fn payload(&self) -> &[u8] {
-        &self.buffer.as_ref()[8..]
+        &self.buffer.as_ref()[8 ..]
     }
 }
 
@@ -189,7 +190,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Packet<T> {
     }
 
     pub fn payload_mut(&mut self) -> &mut [u8] {
-        &mut self.buffer.as_mut()[8..]
+        &mut self.buffer.as_mut()[8 ..]
     }
 }
 

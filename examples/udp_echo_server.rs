@@ -44,13 +44,13 @@ fn main() {
 fn echo(service: &mut env::TService, socket_set: &mut SocketSet, handle: usize, buffer: &mut [u8]) {
     let (payload_len, addr) = recv(service, socket_set, handle, buffer);
 
-    println!("Echo {:?} from {}!", &buffer[..payload_len], addr);
+    println!("Echo {:?} from {}!", &buffer[.. payload_len], addr);
 
     socket_set
         .socket(handle)
         .as_udp_socket()
         .send(payload_len, addr)
-        .map(|payload| payload.copy_from_slice(&buffer[..payload_len]))
+        .map(|payload| payload.copy_from_slice(&buffer[.. payload_len]))
         .unwrap();
 }
 
@@ -62,7 +62,7 @@ fn recv(
 ) -> (usize, SocketAddr) {
     loop {
         if let Ok((payload, addr)) = socket_set.socket(handle).as_udp_socket().recv() {
-            (&mut buffer[..payload.len()]).copy_from_slice(payload);
+            (&mut buffer[.. payload.len()]).copy_from_slice(payload);
             return (payload.len(), addr);
         }
 

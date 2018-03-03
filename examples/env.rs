@@ -1,4 +1,6 @@
-use std;
+use std::thread;
+use std::time::Duration;
+use std::vec::Vec;
 
 use usrnet::core::arp_cache::ArpCache;
 use usrnet::core::layers::{
@@ -112,7 +114,7 @@ pub fn default_service() -> TService {
 #[allow(dead_code)]
 pub fn socket_set<'a, 'b: 'a>() -> SocketSet<'a, 'b> {
     let mut sockets = vec![];
-    for _ in 0..16 {
+    for _ in 0 .. 16 {
         sockets.push(None);
     }
     SocketSet::new(Slice::from(sockets))
@@ -123,7 +125,7 @@ pub fn socket_buffer<'a, F, T>(len: usize, mut f: F) -> Ring<'a, T>
 where
     F: FnMut() -> T,
 {
-    let items: std::vec::Vec<_> = (0..len).map(|_| f()).collect();
+    let items: Vec<_> = (0 .. len).map(|_| f()).collect();
     Ring::from(items)
 }
 
@@ -148,7 +150,7 @@ pub fn udp_socket<'a>(binding: AddrLease<'a>) -> UdpSocket<'a> {
 
 #[allow(dead_code)]
 pub fn tick<'a>(service: &mut TService, socket_set: &mut SocketSet) {
-    std::thread::sleep(std::time::Duration::from_millis(10));
+    thread::sleep(Duration::from_millis(10));
     service.recv(socket_set);
     service.send(socket_set);
 }

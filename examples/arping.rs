@@ -5,6 +5,12 @@ extern crate usrnet;
 
 mod env;
 
+use std::process;
+use std::time::{
+    Duration,
+    Instant,
+};
+
 use usrnet::core::layers::{
     eth_types,
     Arp,
@@ -21,7 +27,7 @@ use usrnet::core::socket::{
 lazy_static! {
     static ref IP_ADDR_ARP: Ipv4Address = Ipv4Address::new([10, 0, 0, 1]);
 
-    static ref TIMEOUT: std::time::Duration = std::time::Duration::from_millis(1000);
+    static ref TIMEOUT: Duration = Duration::from_millis(1000);
 }
 
 /// Sends an ARP request for an IPv4 address.
@@ -60,10 +66,10 @@ fn main() {
 
     println!("ARP request sent. Use tshark or tcpdump to observe.");
 
-    let since = std::time::Instant::now();
+    let since = Instant::now();
 
     // Read frames until (1) ARP reply is received or (2) timeout.
-    while std::time::Instant::now().duration_since(since) < *TIMEOUT {
+    while Instant::now().duration_since(since) < *TIMEOUT {
         while let Ok(eth_buffer) = socket_set.socket(raw_handle).as_raw_socket().recv() {
             let eth_frame = EthernetFrame::try_new(eth_buffer).unwrap();
             if eth_frame.payload_type() != eth_types::ARP {
@@ -79,7 +85,7 @@ fn main() {
                 }) => {
                     if op == ArpOp::Reply && source_proto_addr == *IP_ADDR_ARP {
                         println!("{} has MAC {}!", source_proto_addr, source_hw_addr);
-                        std::process::exit(0);
+                        process::exit(0);
                     }
                 }
                 _ => continue,

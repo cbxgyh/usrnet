@@ -1,5 +1,11 @@
-use std;
+use std::fmt::{
+    Display,
+    Formatter,
+    Result as FmtResult,
+};
 use std::io::Write;
+use std::result::Result as StdResult;
+use std::str::FromStr;
 
 use byteorder::{
     NetworkEndian,
@@ -35,14 +41,15 @@ impl Address {
         Ok(Address(_addr))
     }
 
-    /// Returns a reference to the network byte order representation of the address.
+    /// Returns a reference to the network byte order representation of the
+    /// address.
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 }
 
-impl std::fmt::Display for Address {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for Address {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         write!(
             f,
             "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
@@ -51,11 +58,11 @@ impl std::fmt::Display for Address {
     }
 }
 
-impl std::str::FromStr for Address {
+impl FromStr for Address {
     type Err = ();
 
     /// Parses a MAC address from an A:B:C:D:E:F style string.
-    fn from_str(addr: &str) -> std::result::Result<Address, Self::Err> {
+    fn from_str(addr: &str) -> StdResult<Address, Self::Err> {
         let (bytes, unknown): (Vec<_>, Vec<_>) = addr.split(":")
             .map(|token| u8::from_str_radix(token, 16))
             .partition(|byte| !byte.is_err());
@@ -81,15 +88,18 @@ pub mod eth_types {
 }
 
 mod fields {
-    use std;
+    use std::ops::{
+        Range,
+        RangeFrom,
+    };
 
-    pub const DST_ADDR: std::ops::Range<usize> = 0..6;
+    pub const DST_ADDR: Range<usize> = 0 .. 6;
 
-    pub const SRC_ADDR: std::ops::Range<usize> = 6..12;
+    pub const SRC_ADDR: Range<usize> = 6 .. 12;
 
-    pub const PAYLOAD_TYPE: std::ops::Range<usize> = 12..14;
+    pub const PAYLOAD_TYPE: Range<usize> = 12 .. 14;
 
-    pub const PAYLOAD: std::ops::RangeFrom<usize> = 14..;
+    pub const PAYLOAD: RangeFrom<usize> = 14 ..;
 }
 
 /// View of a byte buffer as an Ethernet frame.

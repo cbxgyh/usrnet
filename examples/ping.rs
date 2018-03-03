@@ -5,6 +5,8 @@ extern crate usrnet;
 
 mod env;
 
+use std::process;
+
 use usrnet::core::layers::{
     Icmpv4Packet,
     Icmpv4Repr,
@@ -80,7 +82,7 @@ fn main() {
             match icmp_repr {
                 Ok(Icmpv4Repr::EchoReply { .. }) => {
                     println!("Got ping response from {}!", *IP_ADDR_PING);
-                    std::process::exit(0);
+                    process::exit(0);
                 }
                 _ => continue,
             };

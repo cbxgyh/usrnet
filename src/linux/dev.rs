@@ -1,4 +1,4 @@
-use std;
+use std::io::Error as IOError;
 
 use libc;
 
@@ -41,20 +41,20 @@ impl Tap {
             );
 
             if tapfd < 0 {
-                panic!("Opening TAP: {}.", std::io::Error::last_os_error());
+                panic!("Opening TAP: {}.", IOError::last_os_error());
             }
 
             let mut _ifreq = ifreq.clone();
             _ifreq.ifr_ifru.ifr_flags = _libc::IFF_TAP | _libc::IFF_NO_PI;
             if libc::ioctl(tapfd, _libc::TUNSETIFF, &mut _ifreq as *mut _libc::c_ifreq) == -1 {
-                panic!("TUNSETIFF TAP: {}.", std::io::Error::last_os_error());
+                panic!("TUNSETIFF TAP: {}.", IOError::last_os_error());
             }
 
             // Query the MTU...
             let sockfd = libc::socket(libc::AF_INET, libc::SOCK_DGRAM, 0);
 
             if sockfd == -1 {
-                panic!("Opening socket: {}.", std::io::Error::last_os_error());
+                panic!("Opening socket: {}.", IOError::last_os_error());
             }
 
             let mut _ifreq = ifreq.clone();
@@ -65,7 +65,7 @@ impl Tap {
                 &mut _ifreq as *mut _libc::c_ifreq,
             ) == -1
             {
-                panic!("IOCTL socket: {}.", std::io::Error::last_os_error());
+                panic!("IOCTL socket: {}.", IOError::last_os_error());
             }
 
             libc::close(sockfd);
@@ -95,7 +95,7 @@ impl Device for Tap {
             if wrote < 0 && _libc::errno() == libc::EAGAIN {
                 return Err(Error::Exhausted);
             } else if wrote < 0 {
-                Err(Error::IO(std::io::Error::last_os_error()))
+                Err(Error::IO(IOError::last_os_error()))
             } else {
                 Ok(())
             }
@@ -113,7 +113,7 @@ impl Device for Tap {
             if read < 0 && _libc::errno() == libc::EAGAIN {
                 return Err(Error::Exhausted);
             } else if read < 0 {
-                Err(Error::IO(std::io::Error::last_os_error()))
+                Err(Error::IO(IOError::last_os_error()))
             } else {
                 Ok(read as usize)
             }
