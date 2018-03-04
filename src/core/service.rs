@@ -209,8 +209,7 @@ impl<D: Device> Service<D> {
     fn recv_eth_frame(&mut self, eth_buffer: &[u8], sockets: &mut SocketSet) -> Result<()> {
         let eth_frame = EthernetFrame::try_new(eth_buffer)?;
 
-        if eth_frame.dst_addr() != self.dev.ethernet_addr()
-            && eth_frame.dst_addr() != EthernetAddress::BROADCAST
+        if eth_frame.dst_addr() != self.dev.ethernet_addr() && !eth_frame.dst_addr().is_broadcast()
         {
             debug!(
                 "Ignoring ethernet frame with destination {}.",

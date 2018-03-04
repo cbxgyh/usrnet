@@ -23,7 +23,7 @@ use {
 pub struct Address([u8; 6]);
 
 impl Address {
-    pub const BROADCAST: Address = Address([0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
+    pub const BROADCAST: Address = Address([0xFF; 6]);
 
     /// Creates a MAC address from a network byte order buffer.
     pub fn new(addr: [u8; 6]) -> Address {
@@ -45,6 +45,26 @@ impl Address {
     /// address.
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
+    }
+
+    // Checks if this is a unicast address.
+    pub fn is_unicast(&self) -> bool {
+        !(self.is_multicast() || self.is_broadcast())
+    }
+
+    // Checks if this is a multicast address.
+    pub fn is_multicast(&self) -> bool {
+        (self.0[0] & 0b00000001) > 0
+    }
+
+    /// Checks if this is a broadcast address.
+    pub fn is_broadcast(&self) -> bool {
+        self.0 == [0xFF; 6]
+    }
+
+    /// Checks if this is a locally assigned address or OUI assigned by IEEE.
+    pub fn is_local(&self) -> bool {
+        (self.0[0] & 0b00000010) > 0
     }
 }
 
@@ -179,5 +199,34 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Frame<T> {
 
     pub fn payload_mut(&mut self) -> &mut [u8] {
         &mut self.buffer.as_mut()[fields::PAYLOAD]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_unicast() {
+        let addr = Address::new([0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+        assert!(addr.is_unicast());
+    }
+
+    #[test]
+    fn test_is_multicast() {
+        let addr = Address::new([0xFF; 6]);
+        assert!(addr.is_broadcast());
+    }
+
+    #[test]
+    fn test_is_broadcast() {
+        let addr = Address::new([0xFF; 6]);
+        assert!(addr.is_broadcast());
+    }
+
+    #[test]
+    fn test_is_local() {
+        let addr = Address::new([0x02, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+        assert!(addr.is_local());
     }
 }
