@@ -4,6 +4,7 @@ use std::fmt::{
     Result as FmtResult,
 };
 use std::io::Write;
+use std::ops::Deref;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
@@ -48,6 +49,11 @@ impl Address {
         &self.0
     }
 
+    /// Returns an integer representation of the address in host byte order.
+    pub fn as_int(&self) -> u32 {
+        (&self.0[..]).read_u32::<NetworkEndian>().unwrap()
+    }
+
     // Checks if this is a unicast address.
     pub fn is_unicast(&self) -> bool {
         !(self.is_multicast() || self.is_reserved())
@@ -70,6 +76,14 @@ impl Display for Address {
     }
 }
 
+impl From<u32> for Address {
+    fn from(addr: u32) -> Address {
+        let mut bytes = [0; 4];
+        (&mut bytes[..]).write_u32::<NetworkEndian>(addr).unwrap();
+        Address(bytes)
+    }
+}
+
 impl FromStr for Address {
     type Err = ();
 
@@ -89,6 +103,60 @@ impl FromStr for Address {
         ipv4.clone_from_slice(&bytes);
 
         Ok(Address::new(ipv4))
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct AddressCidr {
+    address: Address,
+    subnet_len: u32,
+}
+
+impl AddressCidr {
+    /// Creates an IPv4 address with a subnet mask.
+    ///
+    /// # Panics
+    ///
+    /// Causes a panic if the subnet mask is longer than 32 bits.
+    pub fn new(address: Address, subnet_len: usize) -> AddressCidr {
+        assert!(subnet_len <= 32);
+
+        AddressCidr {
+            address,
+            subnet_len: subnet_len as u32,
+        }
+    }
+
+    /// Checks if the address is a member of the subnet.
+    pub fn is_member(&self, address: Address) -> bool {
+        let mask = !(0xFFFFFFFF >> self.subnet_len);
+        (address.as_int() & mask) == (self.address.as_int() & mask)
+    }
+
+    /// Checks if the address is a broadcast address for the subnet.
+    pub fn is_broadcast(&self, address: Address) -> bool {
+        address == self.broadcast()
+    }
+
+    /// Creates an IPv4 broadcast address for the subnet.
+    pub fn broadcast(&self) -> Address {
+        let mask = !(0xFFFFFFFF >> self.subnet_len);
+        let addr = (self.address.as_int() & mask) | (!mask);
+        Address::from(addr)
+    }
+}
+
+impl Deref for AddressCidr {
+    type Target = Address;
+
+    fn deref(&self) -> &Address {
+        &self.address
+    }
+}
+
+impl Display for AddressCidr {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        write!(f, "{}/{}", self.address, self.subnet_len)
     }
 }
 
@@ -427,6 +495,31 @@ mod tests {
     fn test_is_reserved() {
         let addr = Address::new([0xF0, 0x00, 0x00, 0x00]);
         assert!(addr.is_reserved());
+    }
+
+    #[test]
+    fn test_addr_cidr_is_member() {
+        let addr = AddressCidr::new(Address::new([0x12, 0x30, 0x00, 0x00]), 4);
+
+        assert!(!addr.is_member(Address::new([0x00, 0x00, 0x00, 0x00])));
+        assert!(addr.is_member(Address::new([0x10, 0x00, 0x00, 0x00])));
+        assert!(addr.is_member(Address::new([0x12, 0x30, 0x00, 0x00])));
+        assert!(addr.is_member(Address::new([0x12, 0x34, 0x00, 0x00])));
+        assert!(addr.is_member(Address::new([0x1F, 0xFF, 0xFF, 0xFF])));
+    }
+
+    #[test]
+    fn test_addr_broadcast() {
+        let addr = AddressCidr::new(Address::new([0x12, 0x30, 0x00, 0x00]), 4);
+        assert_eq!(addr.broadcast(), Address::new([0x1F, 0xFF, 0xFF, 0xFF]));
+    }
+
+    #[test]
+    fn test_addr_is_broadcast() {
+        let addr = AddressCidr::new(Address::new([0x12, 0x30, 0x00, 0x00]), 4);
+
+        assert!(!addr.is_broadcast(Address::new([0x0F, 0xFF, 0xFF, 0xFF])));
+        assert!(addr.is_broadcast(Address::new([0x1F, 0xFF, 0xFF, 0xFF])));
     }
 
     #[test]

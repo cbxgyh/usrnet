@@ -21,6 +21,7 @@ pub use self::icmpv4::{
 };
 pub use self::ipv4::{
     Address as Ipv4Address,
+    AddressCidr as Ipv4AddressCidr,
     Packet as Ipv4Packet,
     Protocol as Ipv4Protocol,
     Repr as Ipv4Repr,
