@@ -9,7 +9,7 @@ use {
 use core::dev::Device;
 use core::layers::{
     EthernetAddress,
-    Ipv4Address,
+    Ipv4AddressCidr,
 };
 use linux::libc as _libc;
 
@@ -18,7 +18,7 @@ use linux::libc as _libc;
 pub struct Tap {
     tapfd: libc::c_int,
     max_transmission_unit: usize,
-    ipv4_addr: Ipv4Address,
+    ipv4_addr: Ipv4AddressCidr,
     eth_addr: EthernetAddress,
 }
 
@@ -30,7 +30,7 @@ impl Tap {
     ///
     /// Causes a panic if [tun_alloc(...)](https://www.kernel.org/doc/Documentation/networking/tuntap.txt)
     /// runs into an error.
-    pub fn new(ifr_name: &str, ipv4_addr: Ipv4Address, eth_addr: EthernetAddress) -> Tap {
+    pub fn new(ifr_name: &str, ipv4_addr: Ipv4AddressCidr, eth_addr: EthernetAddress) -> Tap {
         unsafe {
             let ifreq = _libc::c_ifreq::with_name(ifr_name);
 
@@ -124,7 +124,7 @@ impl Device for Tap {
         self.max_transmission_unit
     }
 
-    fn ipv4_addr(&self) -> Ipv4Address {
+    fn ipv4_addr(&self) -> Ipv4AddressCidr {
         self.ipv4_addr
     }
 

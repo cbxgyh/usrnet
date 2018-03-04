@@ -26,11 +26,16 @@ use core::socket::{
 pub struct Service<D: Device> {
     dev: D,
     arp_cache: ArpCache,
+    default_gateway: Ipv4Address,
 }
 
 impl<D: Device> Service<D> {
-    pub fn new(dev: D, arp_cache: ArpCache) -> Service<D> {
-        Service { dev, arp_cache }
+    pub fn new(dev: D, arp_cache: ArpCache, default_gateway: Ipv4Address) -> Service<D> {
+        Service {
+            dev,
+            arp_cache,
+            default_gateway,
+        }
     }
 }
 
@@ -143,6 +148,7 @@ impl<D: Device> Service<D> {
     where
         F: FnOnce(&mut [u8]),
     {
+        let dst_addr = self.ip_route(dst_addr);
         let eth_dst_addr = self.eth_addr_for_ip(dst_addr)?;
         let eth_frame_len = EthernetFrame::<&[u8]>::buffer_len(ipv4_packet_len);
 
@@ -173,7 +179,7 @@ impl<D: Device> Service<D> {
         let ipv4_packet = Ipv4Packet::try_new(ipv4_buffer)?;
         ipv4_packet.check_encoding()?;
 
-        if ipv4_packet.dst_addr() != self.dev.ipv4_addr() {
+        if ipv4_packet.dst_addr() != *self.dev.ipv4_addr() {
             debug!(
                 "Ignoring IPv4 packet with destination {}.",
                 ipv4_packet.dst_addr()
@@ -253,7 +259,7 @@ impl<D: Device> Service<D> {
                 target_proto_addr,
                 ..
             } => {
-                if target_proto_addr != self.dev.ipv4_addr() {
+                if target_proto_addr != *self.dev.ipv4_addr() {
                     debug!(
                         "Ignoring ARP with target IPv4 address {}.",
                         target_proto_addr
@@ -269,7 +275,7 @@ impl<D: Device> Service<D> {
                         let arp_repr = Arp::EthernetIpv4 {
                             op: ArpOp::Reply,
                             source_hw_addr: self.dev.ethernet_addr(),
-                            source_proto_addr: self.dev.ipv4_addr(),
+                            source_proto_addr: *self.dev.ipv4_addr(),
                             target_hw_addr: source_hw_addr,
                             target_proto_addr: source_proto_addr,
                         };
@@ -301,7 +307,7 @@ impl<D: Device> Service<D> {
                 let arp_repr = Arp::EthernetIpv4 {
                     op: ArpOp::Request,
                     source_hw_addr: self.dev.ethernet_addr(),
-                    source_proto_addr: self.dev.ipv4_addr(),
+                    source_proto_addr: *self.dev.ipv4_addr(),
                     target_hw_addr: EthernetAddress::BROADCAST,
                     target_proto_addr: ipv4_addr,
                 };
@@ -318,6 +324,16 @@ impl<D: Device> Service<D> {
 
                 Err(Error::Address)
             }
+        }
+    }
+
+    fn ip_route(&self, address: Ipv4Address) -> Ipv4Address {
+        if self.dev.ipv4_addr().is_member(address) {
+            debug!("{} will be routed through link.", address);
+            address
+        } else {
+            debug!("{} will be routed through default gateway.", address);
+            self.default_gateway
         }
     }
 }

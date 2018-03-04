@@ -1,5 +1,3 @@
-#![feature(proc_macro)]
-
 #[cfg(test)]
 #[macro_use]
 extern crate assert_matches;

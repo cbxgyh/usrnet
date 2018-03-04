@@ -25,7 +25,7 @@ use usrnet::core::socket::{
 };
 
 lazy_static! {
-    static ref IP_ADDR_ARP: Ipv4Address = Ipv4Address::new([10, 0, 0, 1]);
+    static ref IP_ADDR_ARP: Ipv4Address = *env::DEFAULT_IPV4_GATEWAY;
 
     static ref TIMEOUT: Duration = Duration::from_millis(1000);
 }
@@ -43,8 +43,8 @@ fn main() {
     // Send an ARP request.
     let arp = Arp::EthernetIpv4 {
         op: ArpOp::Request,
-        source_hw_addr: env::default_eth_addr(),
-        source_proto_addr: env::default_ipv4_addr(),
+        source_hw_addr: *env::DEFAULT_ETH_ADDR,
+        source_proto_addr: *env::DEFAULT_IPV4_ADDR,
         target_hw_addr: EthernetAddress::BROADCAST,
         target_proto_addr: *IP_ADDR_ARP,
     };
@@ -57,7 +57,7 @@ fn main() {
         .send(eth_frame_len)
         .map(|eth_buffer| {
             let mut eth_frame = EthernetFrame::try_new(eth_buffer).unwrap();
-            eth_frame.set_src_addr(env::default_eth_addr());
+            eth_frame.set_src_addr(*env::DEFAULT_ETH_ADDR);
             eth_frame.set_dst_addr(EthernetAddress::BROADCAST);
             eth_frame.set_payload_type(eth_types::ARP);
             arp.serialize(eth_frame.payload_mut()).unwrap();

@@ -6,6 +6,7 @@ use usrnet::core::arp_cache::ArpCache;
 use usrnet::core::layers::{
     EthernetAddress,
     Ipv4Address,
+    Ipv4AddressCidr,
 };
 use usrnet::core::service::Service;
 use usrnet::core::socket::{
@@ -22,6 +23,25 @@ use usrnet::core::storage::{
 };
 use usrnet::core::time::SystemEnv;
 
+lazy_static! {
+    pub static ref DEFAULT_IPV4_ADDR: Ipv4Address = {
+        Ipv4Address::new([10, 0, 0, 102])
+    };
+
+    pub static ref DEFAULT_IPV4_ADDR_CIDR: Ipv4AddressCidr = {
+        Ipv4AddressCidr::new(*DEFAULT_IPV4_ADDR, 24)
+    };
+
+    pub static ref DEFAULT_IPV4_GATEWAY: Ipv4Address = {
+        Ipv4Address::new([10, 0, 0, 101])
+    };
+
+    pub static ref DEFAULT_ETH_ADDR: EthernetAddress = {
+        // Use a local MAC address!
+        EthernetAddress::new([0x06, 0x11, 0x22, 0x33, 0x44, 0x55])
+    };
+}
+
 #[cfg(target_os = "linux")]
 mod dev {
     use usrnet::core::dev::Device;
@@ -33,8 +53,8 @@ mod dev {
     pub fn default_dev() -> TDev {
         let tap = Tap::new(
             "tap0",
-            super::default_ipv4_addr(),
-            super::default_eth_addr(),
+            *super::DEFAULT_IPV4_ADDR_CIDR,
+            *super::DEFAULT_ETH_ADDR,
         );
 
         println!(
@@ -54,7 +74,7 @@ mod dev {
     use usrnet::core::dev::Device;
     use usrnet::core::layers::{
         EthernetAddress,
-        Ipv4Address,
+        Ipv4AddressCidr,
     };
 
     pub struct TDev {}
@@ -72,7 +92,7 @@ mod dev {
             unimplemented!()
         }
 
-        fn ipv4_addr(&self) -> Ipv4Address {
+        fn ipv4_addr(&self) -> Ipv4AddressCidr {
             unimplemented!()
         }
 
@@ -95,20 +115,10 @@ pub use self::dev::{
 pub type TService = Service<TDev>;
 
 #[allow(dead_code)]
-pub fn default_ipv4_addr() -> Ipv4Address {
-    Ipv4Address::new([10, 0, 0, 103])
-}
-
-#[allow(dead_code)]
-pub fn default_eth_addr() -> EthernetAddress {
-    EthernetAddress::new([0, 1, 2, 3, 4, 5])
-}
-
-#[allow(dead_code)]
 pub fn default_service() -> TService {
     let dev = default_dev();
     let arp_cache = ArpCache::new(60, SystemEnv::new());
-    Service::new(dev, arp_cache)
+    Service::new(dev, arp_cache, *DEFAULT_IPV4_GATEWAY)
 }
 
 #[allow(dead_code)]

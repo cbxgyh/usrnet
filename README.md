@@ -4,31 +4,20 @@
 
 ## Building
 
-An Ubuntu dev VM is provided via [Vagrant](https://www.vagrantup.com/)
-to build *usrnet* and run the provided examples. Just...
+An Ubuntu dev VM is provided via [Vagrant](https://www.vagrantup.com/) to build *usrnet* and run the provided examples. Just...
 
 1. `vagrant up && vagrant ssh`
-2. `cd /usrnet && cargo build`
+2. `cd /usrnet && cargo build && cargo test`
 
 ... and that's it!
 
-Note, there are actually two VM's configured in the
-[Vagrantfile](/vagrant/Vagrantfile)
-which are needed for the examples. You may need to change the static IP's
-assigned to these VM's if you get conflicts when running `vagrant up`.
-
 ## Examples
 
-The [examples](/examples) contain simplified programs of some common
-networking utilities. These examples use a
-[Linux TAP](http://backreference.org/2010/03/26/tuntap-interface-tutorial/)
-interface to transmit raw ethernet frames across a bridge and through the VM's
-ethernet interface.
+The [examples directory](/examples) contains simplified versions of some common networking programs. You can run them via `cargo run --example <name> -- <args..>`.
 
-**This means the examples will only compile on a Linux system!**
+These examples use a [Linux TAP](http://backreference.org/2010/03/26/tuntap-interface-tutorial/) interface to transmit raw ethernet frames. **This means the examples will only run on a Linux system!**
 
-Note, if you changed the static IP's of the dev VM's you will need to adjust
-the IP of the device in each example.
+[tap.sh](vagrant/tap.sh) provides a clear explanation of the network topology in use so you can debug any issues you may run into. You can update [env.rs](examples/env.rs) if you wish to change the network topology (e.g. IP address of your device) for running the examples.
 
 ## Resources
 

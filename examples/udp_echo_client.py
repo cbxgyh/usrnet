@@ -6,8 +6,8 @@ import time
 
 
 # NOTE: You may need to change these addresses based on your network topology.
-BIND_ADDR = ('10.0.0.1',  2048)
-ECHO_ADDR = ('10.0.0.103', 4096)
+BIND_ADDR = ('10.0.0.1',   2048)
+ECHO_ADDR = ('10.0.0.102', 4096)
 
 
 def main():

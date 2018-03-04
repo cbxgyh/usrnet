@@ -14,7 +14,7 @@ use usrnet::core::socket::{
 
 lazy_static! {
     static ref BIND_ADDR: SocketAddr = SocketAddr {
-        addr: env::default_ipv4_addr(),
+        addr: *env::DEFAULT_IPV4_ADDR,
         port: 4096,
     };
 }
