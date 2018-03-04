@@ -173,6 +173,14 @@ impl<D: Device> Service<D> {
         let ipv4_packet = Ipv4Packet::try_new(ipv4_buffer)?;
         ipv4_packet.check_encoding()?;
 
+        if ipv4_packet.dst_addr() != self.dev.ipv4_addr() {
+            debug!(
+                "Ignoring IPv4 packet with destination {}.",
+                ipv4_packet.dst_addr()
+            );
+            return Err(Error::NoOp);
+        }
+
         for socket in sockets.iter_mut() {
             let packet = Packet::Ipv4(ipv4_packet.as_ref());
             match socket.recv_forward(&packet) {
@@ -215,6 +223,7 @@ impl<D: Device> Service<D> {
                 "Ignoring ethernet frame with destination {}.",
                 eth_frame.dst_addr()
             );
+            return Err(Error::NoOp);
         }
 
         for socket in sockets.iter_mut() {

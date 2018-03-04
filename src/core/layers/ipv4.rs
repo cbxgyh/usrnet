@@ -20,6 +20,8 @@ use {
 use core::check::internet_checksum;
 
 /// [IPv4 address](https://en.wikipedia.org/wiki/IPv4) in network byte order.
+/// See [this](https://en.wikipedia.org/wiki/Classful_network) for a description
+/// of IPv4 address classes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Address([u8; 4]);
 
@@ -44,6 +46,21 @@ impl Address {
     /// address.
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
+    }
+
+    // Checks if this is a unicast address.
+    pub fn is_unicast(&self) -> bool {
+        !(self.is_multicast() || self.is_reserved())
+    }
+
+    // Checks if this is a multicast address.
+    pub fn is_multicast(&self) -> bool {
+        (self.0[0] & 0b11100000) == 0b11100000
+    }
+
+    // Checks if this is a reserved address.
+    pub fn is_reserved(&self) -> bool {
+        (self.0[0] & 0b11110000) == 0b11110000
     }
 }
 
@@ -389,6 +406,28 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Packet<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_is_unicast() {
+        let addr = Address::new([0x00, 0x00, 0x00, 0x00]);
+        assert!(addr.is_unicast());
+        let addr = Address::new([0x80, 0x00, 0x00, 0x00]);
+        assert!(addr.is_unicast());
+        let addr = Address::new([0xC0, 0x00, 0x00, 0x00]);
+        assert!(addr.is_unicast());
+    }
+
+    #[test]
+    fn test_is_multicast() {
+        let addr = Address::new([0xE0, 0x00, 0x00, 0x00]);
+        assert!(addr.is_multicast());
+    }
+
+    #[test]
+    fn test_is_reserved() {
+        let addr = Address::new([0xF0, 0x00, 0x00, 0x00]);
+        assert!(addr.is_reserved());
+    }
 
     #[test]
     fn test_packet_with_buffer_less_than_min_header() {
