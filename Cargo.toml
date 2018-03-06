@@ -18,10 +18,10 @@ lazy_static = "1.0"
 name = "arping"
 
 [[example]]
-name = "ping"
+name = "dev_up"
 
 [[example]]
-name = "tap_up"
+name = "ping"
 
 [[example]]
 name = "udp_echo_server"

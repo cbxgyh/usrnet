@@ -24,7 +24,7 @@
 #
 # 2) The tap0 will only receive frames if it is UP. As of Linux kernel 2.6.36 TAP
 #    interfaces are UP only if a program has opened the interface. You can use
-#    "cargo run --example tap_up" to bring tap0 UP.
+#    "cargo run --example dev_up" to bring tap0 UP.
 #
 # 3) Do not use the same MAC address for Dev as tap0. Otherwise br0 swallows frames
 #    (or something like that...).

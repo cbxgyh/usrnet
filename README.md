@@ -13,7 +13,7 @@ An Ubuntu dev VM is provided via [Vagrant](https://www.vagrantup.com/) to build 
 
 ## Examples
 
-The [examples directory](/examples) contains simplified versions of some common networking programs. You can run them via `cargo run --example <name> -- <args..>`.
+The [examples directory](/examples) contains simplified versions of some common networking programs. You can run them via `cargo run --example <name> -- <args..>`. As a basic sanity check you can run the dev_up example and issue a ping to 10.0.0.102 (default IP for example devices) and see if you get a response.
 
 These examples use a [Linux TAP](http://backreference.org/2010/03/26/tuntap-interface-tutorial/) interface to transmit raw ethernet frames. **This means the examples will only run on a Linux system!**
 

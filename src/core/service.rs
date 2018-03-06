@@ -1,3 +1,5 @@
+use std::mem::swap;
+
 use {
     Error,
     Result,
@@ -10,6 +12,8 @@ use core::layers::{
     ArpOp,
     EthernetAddress,
     EthernetFrame,
+    Icmpv4Packet,
+    Icmpv4Repr,
     Ipv4Address,
     Ipv4Packet,
     Ipv4Repr,
@@ -139,6 +143,36 @@ impl<D: Device> Service<D> {
         Ok(())
     }
 
+    fn recv_icmp_packet(&mut self, ipv4_repr: &Ipv4Repr, icmp_buffer: &[u8]) -> Result<()> {
+        let icmp_recv_packet = Icmpv4Packet::try_new(icmp_buffer)?;
+        icmp_recv_packet.check_encoding()?;
+
+        let icmp_recv_repr = Icmpv4Repr::deserialize(&icmp_recv_packet)?;
+
+        let (ipv4_repr, icmp_repr, icmp_payload) = match icmp_recv_repr {
+            Icmpv4Repr::EchoRequest { id, seq } => {
+                debug!(
+                    "Got a ping from {}; Sending response...",
+                    ipv4_repr.src_addr
+                );
+                let mut ipv4_repr = ipv4_repr.clone();
+                swap(&mut ipv4_repr.src_addr, &mut ipv4_repr.dst_addr);
+                (
+                    ipv4_repr,
+                    Icmpv4Repr::EchoReply { id, seq },
+                    icmp_recv_packet.payload(),
+                )
+            }
+            _ => return Err(Error::NoOp),
+        };
+
+        self.send_ipv4_packet_with_repr(&ipv4_repr, |ipv4_payload| {
+            let mut icmp_packet = Icmpv4Packet::try_new(ipv4_payload).unwrap();
+            icmp_packet.payload_mut().copy_from_slice(icmp_payload);
+            icmp_repr.serialize(&mut icmp_packet);
+        })
+    }
+
     fn send_ipv4_packet_raw<F>(
         &mut self,
         dst_addr: Ipv4Address,
@@ -198,6 +232,7 @@ impl<D: Device> Service<D> {
 
         match ipv4_packet.protocol() {
             ipv4_protocols::UDP => self.recv_udp_packet(&ipv4_repr, ipv4_packet.payload(), sockets),
+            ipv4_protocols::ICMP => self.recv_icmp_packet(&ipv4_repr, ipv4_packet.payload()),
             i => {
                 debug!("Ignoring IPv4 packet with type {}.", i);
                 Err(Error::NoOp)
