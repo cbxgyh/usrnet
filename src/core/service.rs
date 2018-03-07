@@ -329,52 +329,41 @@ impl<D: Device> Service<D> {
 
     fn recv_arp_packet(&mut self, arp_packet: &[u8]) -> Result<()> {
         let arp_repr = Arp::deserialize(arp_packet)?;
-        match arp_repr {
-            Arp::EthernetIpv4 {
-                op,
-                source_hw_addr,
-                source_proto_addr,
-                target_proto_addr,
-                ..
-            } => {
-                if target_proto_addr != *self.dev.ipv4_addr() {
-                    debug!(
-                        "Ignoring ARP with target IPv4 address {}.",
-                        target_proto_addr
-                    );
-                    return Err(Error::NoOp);
-                }
+        if arp_repr.target_proto_addr != *self.dev.ipv4_addr() {
+            debug!(
+                "Ignoring ARP with target IPv4 address {}.",
+                arp_repr.target_proto_addr
+            );
+            return Err(Error::NoOp);
+        }
 
-                self.arp_cache
-                    .set_eth_addr_for_ip(source_proto_addr, source_hw_addr);
+        self.arp_cache
+            .set_eth_addr_for_ip(arp_repr.source_proto_addr, arp_repr.source_hw_addr);
 
-                match op {
-                    ArpOp::Request => {
-                        let arp_repr = Arp::EthernetIpv4 {
-                            op: ArpOp::Reply,
-                            source_hw_addr: self.dev.ethernet_addr(),
-                            source_proto_addr: *self.dev.ipv4_addr(),
-                            target_hw_addr: source_hw_addr,
-                            target_proto_addr: source_proto_addr,
-                        };
+        match arp_repr.op {
+            ArpOp::Request => {
+                let arp_reply = Arp {
+                    op: ArpOp::Reply,
+                    source_hw_addr: self.dev.ethernet_addr(),
+                    source_proto_addr: *self.dev.ipv4_addr(),
+                    target_hw_addr: arp_repr.source_hw_addr,
+                    target_proto_addr: arp_repr.source_proto_addr,
+                };
 
-                        debug!(
-                            "Sending ARP reply to {}/{}.",
-                            source_proto_addr, source_hw_addr
-                        );
+                debug!(
+                    "Sending ARP reply to {}/{}.",
+                    arp_repr.target_proto_addr, arp_repr.target_hw_addr
+                );
 
-                        let eth_frame_len =
-                            EthernetFrame::<&[u8]>::buffer_len(arp_repr.buffer_len());
+                let eth_frame_len = EthernetFrame::<&[u8]>::buffer_len(arp_repr.buffer_len());
 
-                        self.send_eth_frame(eth_frame_len, |eth_frame| {
-                            eth_frame.set_dst_addr(source_hw_addr);
-                            eth_frame.set_payload_type(eth_types::ARP);
-                            arp_repr.serialize(eth_frame.payload_mut()).unwrap();
-                        })
-                    }
-                    _ => Ok(()),
-                }
+                self.send_eth_frame(eth_frame_len, |eth_frame| {
+                    eth_frame.set_dst_addr(arp_reply.target_hw_addr);
+                    eth_frame.set_payload_type(eth_types::ARP);
+                    arp_reply.serialize(eth_frame.payload_mut()).unwrap();
+                })
             }
+            _ => Ok(()),
         }
     }
 
@@ -382,7 +371,7 @@ impl<D: Device> Service<D> {
         match self.arp_cache.eth_addr_for_ip(ipv4_addr) {
             Some(eth_addr) => Ok(eth_addr),
             None => {
-                let arp_repr = Arp::EthernetIpv4 {
+                let arp_repr = Arp {
                     op: ArpOp::Request,
                     source_hw_addr: self.dev.ethernet_addr(),
                     source_proto_addr: *self.dev.ipv4_addr(),

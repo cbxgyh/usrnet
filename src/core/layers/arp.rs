@@ -37,42 +37,36 @@ pub mod proto_types {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Arp {
-    EthernetIpv4 {
-        op: Op,
-        source_hw_addr: EthernetAddress,
-        source_proto_addr: Ipv4Address,
-        target_hw_addr: EthernetAddress,
-        target_proto_addr: Ipv4Address,
-    },
+pub struct Arp {
+    pub op: Op,
+    pub source_hw_addr: EthernetAddress,
+    pub source_proto_addr: Ipv4Address,
+    pub target_hw_addr: EthernetAddress,
+    pub target_proto_addr: Ipv4Address,
 }
 
 impl Arp {
     /// Returns the buffer size needed to serialize this ARP representation.
     pub fn buffer_len(&self) -> usize {
-        8 + match *self {
-            Arp::EthernetIpv4 { .. } => 20,
-        }
+        // 8 for header + 20 for addresses.
+        28
     }
 
     /// Tries to deserialize a buffer into an ARP representation.
     pub fn deserialize(buffer: &[u8]) -> Result<Arp> {
-        if buffer.len() < 8 {
-            return Err(Error::Exhausted);
+        if buffer.len() < 28 {
+            return Err(Error::Malformed);
         }
 
-        let mut reader = Cursor::new(buffer);
-        let hw_type = reader.read_u16::<NetworkEndian>().unwrap();
-        let proto_type = reader.read_u16::<NetworkEndian>().unwrap();
-        let _ = reader.read_u8().unwrap(); // Skip address sizes.
-        let _ = reader.read_u8().unwrap();
-        let op = reader.read_u16::<NetworkEndian>().unwrap();
+        let hw_type = (&buffer[0 .. 2]).read_u16::<NetworkEndian>().unwrap();
+        let proto_type = (&buffer[2 .. 4]).read_u16::<NetworkEndian>().unwrap();
+        let op = (&buffer[6 .. 8]).read_u16::<NetworkEndian>().unwrap();
 
         if hw_type != hw_types::ETHERNET || proto_type != proto_types::IPV4 || op == 0 || op > 2 {
             return Err(Error::Malformed);
         }
 
-        Ok(Arp::EthernetIpv4 {
+        Ok(Arp {
             op: if op == 1 { Op::Request } else { Op::Reply },
             source_hw_addr: EthernetAddress::try_new(&buffer[8 .. 14]).unwrap(),
             source_proto_addr: Ipv4Address::try_new(&buffer[14 .. 18]).unwrap(),
@@ -87,30 +81,20 @@ impl Arp {
             return Err(Error::Exhausted);
         }
 
-        match *self {
-            Arp::EthernetIpv4 {
-                op,
-                ref source_hw_addr,
-                ref source_proto_addr,
-                ref target_hw_addr,
-                ref target_proto_addr,
-            } => {
-                let mut writer = Cursor::new(buffer);
-                writer
-                    .write_u16::<NetworkEndian>(hw_types::ETHERNET)
-                    .unwrap();
-                writer
-                    .write_u16::<NetworkEndian>(proto_types::IPV4)
-                    .unwrap();
-                writer.write_u8(6).unwrap();
-                writer.write_u8(4).unwrap();
-                writer.write_u16::<NetworkEndian>(op as u16).unwrap();
-                writer.write(source_hw_addr.as_bytes()).unwrap();
-                writer.write(source_proto_addr.as_bytes()).unwrap();
-                writer.write(target_hw_addr.as_bytes()).unwrap();
-                writer.write(target_proto_addr.as_bytes()).unwrap();
-            }
-        };
+        let mut writer = Cursor::new(buffer);
+        writer
+            .write_u16::<NetworkEndian>(hw_types::ETHERNET)
+            .unwrap();
+        writer
+            .write_u16::<NetworkEndian>(proto_types::IPV4)
+            .unwrap();
+        writer.write_u8(6).unwrap();
+        writer.write_u8(4).unwrap();
+        writer.write_u16::<NetworkEndian>(self.op as u16).unwrap();
+        writer.write(self.source_hw_addr.as_bytes()).unwrap();
+        writer.write(self.source_proto_addr.as_bytes()).unwrap();
+        writer.write(self.target_hw_addr.as_bytes()).unwrap();
+        writer.write(self.target_proto_addr.as_bytes()).unwrap();
 
         Ok(())
     }

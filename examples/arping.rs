@@ -41,7 +41,7 @@ fn main() {
     let raw_handle = socket_set.add_socket(raw_socket).unwrap();
 
     // Send an ARP request.
-    let arp = Arp::EthernetIpv4 {
+    let arp = Arp {
         op: ArpOp::Request,
         source_hw_addr: *env::DEFAULT_ETH_ADDR,
         source_proto_addr: *env::DEFAULT_IPV4_ADDR,
@@ -77,19 +77,17 @@ fn main() {
             }
 
             match Arp::deserialize(eth_frame.payload()) {
-                Ok(Arp::EthernetIpv4 {
-                    op,
-                    source_hw_addr,
-                    source_proto_addr,
-                    ..
-                }) => {
-                    if op == ArpOp::Reply && source_proto_addr == *IP_ADDR_ARP {
-                        println!("{} has MAC {}!", source_proto_addr, source_hw_addr);
+                Ok(arp_repr) => {
+                    if arp_repr.op == ArpOp::Reply && arp_repr.source_proto_addr == *IP_ADDR_ARP {
+                        println!(
+                            "{} has MAC {}!",
+                            arp_repr.source_proto_addr, arp_repr.source_hw_addr
+                        );
                         process::exit(0);
                     }
                 }
                 _ => continue,
-            };
+            }
         }
 
         env::tick(&mut service, &mut socket_set);
