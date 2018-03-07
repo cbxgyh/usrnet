@@ -70,7 +70,7 @@ fn main() {
             ip_repr.serialize(&mut ip_packet);
 
             let mut icmp_packet = Icmpv4Packet::try_new(ip_packet.payload_mut()).unwrap();
-            icmp_repr.serialize(&mut icmp_packet);
+            icmp_repr.serialize(&mut icmp_packet).unwrap();
         })
         .unwrap();
 

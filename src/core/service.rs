@@ -12,10 +12,12 @@ use core::layers::{
     ArpOp,
     EthernetAddress,
     EthernetFrame,
+    Icmpv4DestinationUnreachable,
     Icmpv4Packet,
     Icmpv4Repr,
     Ipv4Address,
     Ipv4Packet,
+    Ipv4Protocol,
     Ipv4Repr,
     UdpPacket,
     UdpRepr,
@@ -125,22 +127,65 @@ impl<D: Device> Service<D> {
     fn recv_udp_packet(
         &mut self,
         ipv4_repr: &Ipv4Repr,
-        udp_buffer: &[u8],
+        ipv4_packet: &Ipv4Packet<&[u8]>,
         sockets: &mut SocketSet,
     ) -> Result<()> {
-        let udp_packet = UdpPacket::try_new(udp_buffer)?;
+        let udp_packet = UdpPacket::try_new(ipv4_packet.payload())?;
         udp_packet.check_encoding(ipv4_repr)?;
 
         let udp_repr = UdpRepr::deserialize(&udp_packet)?;
 
         let packet = Packet::Udp(*ipv4_repr, udp_repr, udp_packet.payload());
+        let mut unreachable = true;
         for socket in sockets.iter_mut() {
             match socket.recv_forward(&packet) {
+                Ok(_) => unreachable = false,
                 _ => {}
             }
         }
 
-        Ok(())
+        // Send an ICMP message indicating packet has been ignored because no
+        // UDP sockets are bound to the specified port.
+        if unreachable {
+            let icmp_repr = Icmpv4Repr::DestinationUnreachable {
+                reason: Icmpv4DestinationUnreachable::PortUnreachable,
+                ipv4_header_len: (ipv4_packet.header_len() * 4) as usize,
+            };
+            let ipv4_repr = Ipv4Repr {
+                src_addr: *self.dev.ipv4_addr(),
+                dst_addr: ipv4_repr.src_addr,
+                protocol: Ipv4Protocol::ICMP,
+                payload_len: icmp_repr.buffer_len() as u16,
+            };
+            debug!(
+                "Sending ICMP {:?} in response to a UDP {:?}.",
+                icmp_repr, udp_repr
+            );
+            self.send_icmp_packet(&ipv4_repr, &icmp_repr, |payload| {
+                let copy_len = payload.len() as usize;
+                payload.copy_from_slice(&ipv4_packet.as_ref()[.. copy_len]);
+            })
+        } else {
+            Ok(())
+        }
+    }
+
+    fn send_icmp_packet<F>(
+        &mut self,
+        ipv4_repr: &Ipv4Repr,
+        icmp_repr: &Icmpv4Repr,
+        f: F,
+    ) -> Result<()>
+    where
+        F: FnOnce(&mut [u8]),
+    {
+        self.send_ipv4_packet_with_repr(&ipv4_repr, |ipv4_payload| {
+            let mut icmp_packet = Icmpv4Packet::try_new(ipv4_payload).unwrap();
+            f(icmp_packet.payload_mut());
+            // NOTE: It's important that the ICMP serialization happens after the payload
+            // is written to ensure a correct checksum.
+            icmp_repr.serialize(&mut icmp_packet).unwrap();
+        })
     }
 
     fn recv_icmp_packet(&mut self, ipv4_repr: &Ipv4Repr, icmp_buffer: &[u8]) -> Result<()> {
@@ -166,10 +211,8 @@ impl<D: Device> Service<D> {
             _ => return Err(Error::NoOp),
         };
 
-        self.send_ipv4_packet_with_repr(&ipv4_repr, |ipv4_payload| {
-            let mut icmp_packet = Icmpv4Packet::try_new(ipv4_payload).unwrap();
-            icmp_packet.payload_mut().copy_from_slice(icmp_payload);
-            icmp_repr.serialize(&mut icmp_packet);
+        self.send_icmp_packet(&ipv4_repr, &icmp_repr, |payload| {
+            payload.copy_from_slice(icmp_payload);
         })
     }
 
@@ -231,7 +274,7 @@ impl<D: Device> Service<D> {
         let ipv4_repr = Ipv4Repr::deserialize(&ipv4_packet)?;
 
         match ipv4_packet.protocol() {
-            ipv4_protocols::UDP => self.recv_udp_packet(&ipv4_repr, ipv4_packet.payload(), sockets),
+            ipv4_protocols::UDP => self.recv_udp_packet(&ipv4_repr, &ipv4_packet, sockets),
             ipv4_protocols::ICMP => self.recv_icmp_packet(&ipv4_repr, ipv4_packet.payload()),
             i => {
                 debug!("Ignoring IPv4 packet with type {}.", i);

@@ -16,6 +16,7 @@ pub use self::ethernet::{
     Frame as EthernetFrame,
 };
 pub use self::icmpv4::{
+    DestinationUnreachable as Icmpv4DestinationUnreachable,
     Packet as Icmpv4Packet,
     Repr as Icmpv4Repr,
 };

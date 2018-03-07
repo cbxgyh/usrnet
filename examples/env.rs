@@ -160,7 +160,7 @@ pub fn udp_socket<'a>(binding: AddrLease<'a>) -> UdpSocket<'a> {
 
 #[allow(dead_code)]
 pub fn tick<'a>(service: &mut TService, socket_set: &mut SocketSet) {
-    thread::sleep(Duration::from_millis(10));
+    thread::sleep(Duration::new(0, 1_000));
     service.recv(socket_set);
     service.send(socket_set);
 }

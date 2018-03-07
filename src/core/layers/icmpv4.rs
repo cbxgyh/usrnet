@@ -13,15 +13,37 @@ use core::check::internet_checksum;
 /// Safe representation of an ICMP header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Repr {
-    EchoReply { id: u16, seq: u16 },
-    EchoRequest { id: u16, seq: u16 },
+    EchoReply {
+        id: u16,
+        seq: u16,
+    },
+    EchoRequest {
+        id: u16,
+        seq: u16,
+    },
+    DestinationUnreachable {
+        reason: DestinationUnreachable,
+        ipv4_header_len: usize,
+    },
+    #[doc(hidden)] ___Exhaustive,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DestinationUnreachable {
+    PortUnreachable,
+    #[doc(hidden)] ___Exhaustive,
 }
 
 impl Repr {
     /// Returns the ICMP packet size needed to serialize this ICMP
     /// representation.
     pub fn buffer_len(&self) -> usize {
-        8
+        match *self {
+            Repr::DestinationUnreachable {
+                ipv4_header_len, ..
+            } => ipv4_header_len + 16,
+            _ => 8,
+        }
     }
 
     /// Tries to deserialize a packet into an ICMP representation.
@@ -29,44 +51,92 @@ impl Repr {
     where
         T: AsRef<[u8]>,
     {
-        let header = packet.header();
-        let id = (&header[0 .. 2]).read_u16::<NetworkEndian>().unwrap();
-        let seq = (&header[2 .. 4]).read_u16::<NetworkEndian>().unwrap();
+        fn echo_id_seq<T>(packet: &Packet<T>) -> (u16, u16)
+        where
+            T: AsRef<[u8]>,
+        {
+            (
+                (&packet.header()[0 .. 2])
+                    .read_u16::<NetworkEndian>()
+                    .unwrap(),
+                (&packet.header()[2 .. 4])
+                    .read_u16::<NetworkEndian>()
+                    .unwrap(),
+            )
+        }
 
         match (packet._type(), packet.code()) {
-            (0, 0) => Ok(Repr::EchoReply { id, seq }),
-            (8, 0) => Ok(Repr::EchoRequest { id, seq }),
+            (0, 0) => {
+                let (id, seq) = echo_id_seq(packet);
+                Ok(Repr::EchoReply { id, seq })
+            }
+            (8, 0) => {
+                let (id, seq) = echo_id_seq(packet);
+                Ok(Repr::EchoRequest { id, seq })
+            }
+            (3, 3) => {
+                // IP header (20 bytes) + payload (8 bytes) minimum!
+                if packet.payload().len() < 28 {
+                    Err(Error::Malformed)
+                } else {
+                    let ipv4_header_len = packet.payload().len() - 8;
+                    Ok(Repr::DestinationUnreachable {
+                        reason: DestinationUnreachable::PortUnreachable,
+                        ipv4_header_len,
+                    })
+                }
+            }
             _ => Err(Error::Malformed),
         }
     }
 
     /// Serializes the ICMP representation into a packet.
-    pub fn serialize<T>(&self, packet: &mut Packet<T>)
+    pub fn serialize<T>(&self, packet: &mut Packet<T>) -> Result<()>
     where
         T: AsRef<[u8]> + AsMut<[u8]>,
     {
-        let mut echo_reply_or_request = |type_, id, seq| {
-            packet.set_type(type_);
+        fn echo<T>(packet: &mut Packet<T>, type_of: u8, id: u16, seq: u16)
+        where
+            T: AsRef<[u8]> + AsMut<[u8]>,
+        {
+            packet.set_type(type_of);
             packet.set_code(0);
-            packet.set_checksum(0);
 
-            let mut header = [0; 4];
-            (&mut header[0 .. 2])
+            (&mut packet.header_mut()[0 .. 2])
                 .write_u16::<NetworkEndian>(id)
                 .unwrap();
-            (&mut header[2 .. 4])
+            (&mut packet.header_mut()[2 .. 4])
                 .write_u16::<NetworkEndian>(seq)
                 .unwrap();
-            packet.set_header(header);
-
-            let checksum = packet.gen_packet_checksum();
-            packet.set_checksum(checksum);
         };
 
         match *self {
-            Repr::EchoReply { id, seq } => echo_reply_or_request(0, id, seq),
-            Repr::EchoRequest { id, seq } => echo_reply_or_request(8, id, seq),
-        }
+            Repr::EchoReply { id, seq } => echo(packet, 0, id, seq),
+            Repr::EchoRequest { id, seq } => echo(packet, 8, id, seq),
+            Repr::DestinationUnreachable {
+                reason,
+                ipv4_header_len,
+            } => {
+                // IP header + payload (8 bytes)!
+                if packet.payload().len() != ipv4_header_len + 8 {
+                    return Err(Error::Malformed);
+                }
+                packet.set_type(3);
+                match reason {
+                    DestinationUnreachable::PortUnreachable => packet.set_code(3),
+                    _ => unreachable!(),
+                };
+                let zeros = [0; 4];
+                packet.header_mut().copy_from_slice(&zeros[..]);
+            }
+            _ => unreachable!(),
+        };
+
+        packet.set_checksum(0);
+        let checksum = packet.gen_packet_checksum();
+        packet.set_checksum(checksum);
+
+        Ok(())
     }
 }
 
@@ -143,10 +213,8 @@ impl<T: AsRef<[u8]>> Packet<T> {
             .unwrap()
     }
 
-    pub fn header(&self) -> [u8; 4] {
-        let mut header: [u8; 4] = [0; 4];
-        header.clone_from_slice(&self.buffer.as_ref()[fields::HEADER]);
-        header
+    pub fn header(&self) -> &[u8] {
+        &self.buffer.as_ref()[fields::HEADER]
     }
 
     pub fn payload(&self) -> &[u8] {
@@ -169,12 +237,8 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Packet<T> {
             .unwrap()
     }
 
-    pub fn set_header(&mut self, header: [u8; 4]) {
-        let header_slice = &mut self.buffer.as_mut()[fields::HEADER];
-        header_slice[0] = header[0];
-        header_slice[1] = header[1];
-        header_slice[2] = header[2];
-        header_slice[3] = header[3];
+    pub fn header_mut(&mut self) -> &mut [u8] {
+        &mut self.buffer.as_mut()[fields::HEADER]
     }
 
     pub fn payload_mut(&mut self) -> &mut [u8] {
@@ -230,7 +294,9 @@ mod tests {
             packet.set_type(1);
             packet.set_code(2);
             packet.set_checksum(772);
-            packet.set_header([0x05, 0x06, 0x07, 0x08]);
+            packet
+                .header_mut()
+                .copy_from_slice(&[0x05, 0x06, 0x07, 0x08]);
             packet.payload_mut()[0] = 0x09;
         }
 
