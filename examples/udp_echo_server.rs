@@ -5,6 +5,7 @@ extern crate usrnet;
 
 mod env;
 
+use usrnet::core::services::Interface;
 use usrnet::core::socket::{
     Bindings,
     SocketAddr,
@@ -23,8 +24,7 @@ lazy_static! {
 fn main() {
     env_logger::init();
 
-    let mut service = env::default_service();
-
+    let mut interface = env::default_interface();
     let bindings = Bindings::new();
     let addr_binding = bindings.bind_udp(*BIND_ADDR).unwrap();
     let socket = TaggedSocket::Udp(env::udp_socket(addr_binding));
@@ -37,12 +37,12 @@ fn main() {
     println!("Running UDP echo server; You can use udp_echo_client.py to generate UDP packets.");
 
     loop {
-        echo(&mut service, &mut socket_set, handle, &mut buffer[..]);
+        echo(&mut interface, &mut socket_set, handle, &mut buffer[..]);
     }
 }
 
-fn echo(service: &mut env::TService, socket_set: &mut SocketSet, handle: usize, buffer: &mut [u8]) {
-    let (payload_len, addr) = recv(service, socket_set, handle, buffer);
+fn echo(interface: &mut Interface, socket_set: &mut SocketSet, handle: usize, buffer: &mut [u8]) {
+    let (payload_len, addr) = recv(interface, socket_set, handle, buffer);
 
     println!("Echo {:?} from {}!", &buffer[.. payload_len], addr);
 
@@ -55,7 +55,7 @@ fn echo(service: &mut env::TService, socket_set: &mut SocketSet, handle: usize, 
 }
 
 fn recv(
-    service: &mut env::TService,
+    interface: &mut Interface,
     socket_set: &mut SocketSet,
     handle: usize,
     buffer: &mut [u8],
@@ -66,6 +66,6 @@ fn recv(
             return (payload.len(), addr);
         }
 
-        env::tick(service, socket_set);
+        env::tick(interface, socket_set);
     }
 }

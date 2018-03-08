@@ -10,10 +10,10 @@ mod env;
 fn main() {
     env_logger::init();
 
-    let mut service = env::default_service();
+    let mut interface = env::default_interface();
     let mut socket_set = env::socket_set();
 
     loop {
-        env::tick(&mut service, &mut socket_set);
+        env::tick(&mut interface, &mut socket_set);
     }
 }

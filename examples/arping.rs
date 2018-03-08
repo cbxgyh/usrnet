@@ -34,8 +34,7 @@ lazy_static! {
 fn main() {
     env_logger::init();
 
-    let mut service = env::default_service();
-
+    let mut interface = env::default_interface();
     let mut socket_set = env::socket_set();
     let raw_socket = TaggedSocket::Raw(env::raw_socket(RawType::Ethernet));
     let raw_handle = socket_set.add_socket(raw_socket).unwrap();
@@ -90,7 +89,7 @@ fn main() {
             }
         }
 
-        env::tick(&mut service, &mut socket_set);
+        env::tick(&mut interface, &mut socket_set);
     }
 
     eprintln!("Timeout!");

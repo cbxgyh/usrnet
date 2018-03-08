@@ -45,8 +45,7 @@ fn main() {
         .map(|addr| Ipv4Address::from_str(addr).unwrap())
         .unwrap_or(*env::DEFAULT_IPV4_GATEWAY);
 
-    let mut service = env::default_service();
-
+    let mut interface = env::default_interface();
     let mut socket_set = env::socket_set();
     let raw_socket = TaggedSocket::Raw(env::raw_socket(RawType::Ipv4));
     let raw_handle = socket_set.add_socket(raw_socket).unwrap();
@@ -104,6 +103,6 @@ fn main() {
             };
         }
 
-        env::tick(&mut service, &mut socket_set);
+        env::tick(&mut interface, &mut socket_set);
     }
 }

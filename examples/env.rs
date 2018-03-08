@@ -2,13 +2,15 @@ use std::thread;
 use std::time::Duration;
 use std::vec::Vec;
 
-use usrnet::core::arp_cache::ArpCache;
 use usrnet::core::layers::{
     EthernetAddress,
     Ipv4Address,
     Ipv4AddressCidr,
 };
-use usrnet::core::service::Service;
+use usrnet::core::services::{
+    socket,
+    Interface,
+};
 use usrnet::core::socket::{
     AddrLease,
     RawSocket,
@@ -21,7 +23,6 @@ use usrnet::core::storage::{
     Ring,
     Slice,
 };
-use usrnet::core::time::SystemEnv;
 
 lazy_static! {
     pub static ref DEFAULT_IPV4_ADDR: Ipv4Address = {
@@ -43,14 +44,15 @@ lazy_static! {
 }
 
 #[cfg(target_os = "linux")]
-mod dev {
+mod platform {
+    use super::*;
+    use usrnet::core::arp_cache::ArpCache;
     use usrnet::core::dev::Device;
+    use usrnet::core::time::SystemEnv;
     use usrnet::linux::dev::Tap;
 
-    pub type TDev = Tap;
-
     #[allow(dead_code)]
-    pub fn default_dev() -> TDev {
+    pub fn default_interface() -> Interface {
         let tap = Tap::new(
             "tap0",
             *super::DEFAULT_IPV4_ADDR_CIDR,
@@ -64,62 +66,25 @@ mod dev {
             tap.ethernet_addr()
         );
 
-        tap
+        Interface {
+            dev: Box::new(tap),
+            arp_cache: ArpCache::new(60, SystemEnv::new()),
+            default_gateway: *DEFAULT_IPV4_GATEWAY,
+        }
     }
 }
 
 #[cfg(not(target_os = "linux"))]
-mod dev {
-    use usrnet::Result;
-    use usrnet::core::dev::Device;
-    use usrnet::core::layers::{
-        EthernetAddress,
-        Ipv4AddressCidr,
-    };
-
-    pub struct TDev {}
-
-    impl Device for TDev {
-        fn send(&mut self, _: &[u8]) -> Result<()> {
-            unimplemented!()
-        }
-
-        fn recv(&mut self, _: &mut [u8]) -> Result<usize> {
-            unimplemented!()
-        }
-
-        fn max_transmission_unit(&self) -> usize {
-            unimplemented!()
-        }
-
-        fn ipv4_addr(&self) -> Ipv4AddressCidr {
-            unimplemented!()
-        }
-
-        fn ethernet_addr(&self) -> EthernetAddress {
-            unimplemented!()
-        }
-    }
+mod platform {
+    use usrnet::core::services::Interface;
 
     #[allow(dead_code)]
-    pub fn default_dev() -> TDev {
+    pub fn default_interface() -> Interface {
         panic!("Sorry, examples are only supported on Linux.");
     }
 }
 
-pub use self::dev::{
-    default_dev,
-    TDev,
-};
-
-pub type TService = Service<TDev>;
-
-#[allow(dead_code)]
-pub fn default_service() -> TService {
-    let dev = default_dev();
-    let arp_cache = ArpCache::new(60, SystemEnv::new());
-    Service::new(dev, arp_cache, *DEFAULT_IPV4_GATEWAY)
-}
+pub use self::platform::default_interface;
 
 #[allow(dead_code)]
 pub fn socket_set<'a, 'b: 'a>() -> SocketSet<'a, 'b> {
@@ -159,8 +124,8 @@ pub fn udp_socket<'a>(binding: AddrLease<'a>) -> UdpSocket<'a> {
 }
 
 #[allow(dead_code)]
-pub fn tick<'a>(service: &mut TService, socket_set: &mut SocketSet) {
+pub fn tick<'a>(interface: &mut Interface, socket_set: &mut SocketSet) {
     thread::sleep(Duration::new(0, 1_000));
-    service.recv(socket_set);
-    service.send(socket_set);
+    socket::recv(interface, socket_set);
+    socket::send(interface, socket_set);
 }
