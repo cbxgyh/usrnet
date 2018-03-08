@@ -35,7 +35,7 @@ pub fn send_packet(
 /// This may result in a response to ARP requests, updating the ARP cache, etc.
 pub fn recv_packet(interface: &mut Interface, arp_packet: &[u8]) -> Result<()> {
     let arp_repr = Arp::deserialize(arp_packet)?;
-    if arp_repr.target_proto_addr != *interface.dev.ipv4_addr() {
+    if arp_repr.target_proto_addr != *interface.ipv4_addr {
         debug!(
             "Ignoring ARP with target IPv4 address {}.",
             arp_repr.target_proto_addr
@@ -51,8 +51,8 @@ pub fn recv_packet(interface: &mut Interface, arp_packet: &[u8]) -> Result<()> {
         ArpOp::Request => {
             let arp_reply = Arp {
                 op: ArpOp::Reply,
-                source_hw_addr: interface.dev.ethernet_addr(),
-                source_proto_addr: *interface.dev.ipv4_addr(),
+                source_hw_addr: interface.ethernet_addr,
+                source_proto_addr: *interface.ipv4_addr,
                 target_hw_addr: arp_repr.source_hw_addr,
                 target_proto_addr: arp_repr.source_proto_addr,
             };
@@ -82,8 +82,8 @@ pub fn eth_addr_for_ip(
         None => {
             let arp_repr = Arp {
                 op: ArpOp::Request,
-                source_hw_addr: interface.dev.ethernet_addr(),
-                source_proto_addr: *interface.dev.ipv4_addr(),
+                source_hw_addr: interface.ethernet_addr,
+                source_proto_addr: *interface.ipv4_addr,
                 target_hw_addr: EthernetAddress::BROADCAST,
                 target_proto_addr: ipv4_addr,
             };

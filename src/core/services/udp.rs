@@ -73,7 +73,7 @@ pub fn recv_packet(
             ipv4_header_len: (ipv4_packet.header_len() * 4) as usize,
         };
         let ipv4_repr = Ipv4Repr {
-            src_addr: *interface.dev.ipv4_addr(),
+            src_addr: *interface.ipv4_addr,
             dst_addr: ipv4_repr.src_addr,
             protocol: Ipv4Protocol::ICMP,
             payload_len: icmp_repr.buffer_len() as u16,

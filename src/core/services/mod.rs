@@ -12,14 +12,23 @@ pub mod udp;
 
 use core::arp_cache::ArpCache;
 use core::dev::Device;
-use core::repr::Ipv4Address;
+use core::repr::{
+    EthernetAddress,
+    Ipv4Address,
+    Ipv4AddressCidr,
+};
 
 /// An interface for sending and receiving network packets.
 pub struct Interface {
-    /// A device for sending and receiving raw Ethernet frames.
+    /// Device for sending and receiving raw Ethernet frames.
     pub dev: Box<Device>,
-    /// A cache for IPv4/Ethernet address translations.
+    /// Cache for IPv4/Ethernet address translations.
     pub arp_cache: ArpCache,
-    /// A default gateway for IPv4 packets not on the device's local network.
+    /// Ethernet address for the interface.
+    pub ethernet_addr: EthernetAddress,
+    /// IPv4 address for the interface.
+    pub ipv4_addr: Ipv4AddressCidr,
+    /// Default gateway for IPv4 packets not on the interface subnet. This
+    /// should be on the same subnet as ipv4_addr!
     pub default_gateway: Ipv4Address,
 }

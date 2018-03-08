@@ -2,6 +2,7 @@ use std::thread;
 use std::time::Duration;
 use std::vec::Vec;
 
+use usrnet::core::arp_cache::ArpCache;
 use usrnet::core::repr::{
     EthernetAddress,
     Ipv4Address,
@@ -23,6 +24,7 @@ use usrnet::core::storage::{
     Ring,
     Slice,
 };
+use usrnet::core::time::SystemEnv;
 
 lazy_static! {
     pub static ref DEFAULT_IPV4_ADDR: Ipv4Address = {
@@ -45,46 +47,47 @@ lazy_static! {
 
 #[cfg(target_os = "linux")]
 mod platform {
-    use super::*;
-    use usrnet::core::arp_cache::ArpCache;
     use usrnet::core::dev::Device;
-    use usrnet::core::time::SystemEnv;
     use usrnet::linux::dev::Tap;
 
     #[allow(dead_code)]
-    pub fn default_interface() -> Interface {
-        let tap = Tap::new(
-            "tap0",
-            *super::DEFAULT_IPV4_ADDR_CIDR,
-            *super::DEFAULT_ETH_ADDR,
-        );
-
-        println!(
-            "Device: (MTU = {}, IPv4 = {}, MAC = {})",
-            tap.max_transmission_unit(),
-            tap.ipv4_addr(),
-            tap.ethernet_addr()
-        );
-
-        Interface {
-            dev: Box::new(tap),
-            arp_cache: ArpCache::new(60, SystemEnv::new()),
-            default_gateway: *DEFAULT_IPV4_GATEWAY,
-        }
+    pub fn default_dev() -> Box<Device> {
+        Box::new(Tap::new("tap0"))
     }
 }
 
 #[cfg(not(target_os = "linux"))]
 mod platform {
-    use usrnet::core::services::Interface;
+    use usrnet::core::dev::Device;
 
     #[allow(dead_code)]
-    pub fn default_interface() -> Interface {
+    pub fn default_dev() -> Box<Device> {
         panic!("Sorry, examples are only supported on Linux.");
     }
 }
 
-pub use self::platform::default_interface;
+pub use self::platform::default_dev;
+
+#[allow(dead_code)]
+pub fn default_interface() -> Interface {
+    let interface = Interface {
+        dev: default_dev(),
+        arp_cache: ArpCache::new(60, SystemEnv::new()),
+        ethernet_addr: *DEFAULT_ETH_ADDR,
+        ipv4_addr: *DEFAULT_IPV4_ADDR_CIDR,
+        default_gateway: *DEFAULT_IPV4_GATEWAY,
+    };
+
+    println!(
+        "Interface: (MTU = {}, MAC = {}, IPv4 = {}, Gateway: {})",
+        interface.dev.max_transmission_unit(),
+        interface.ethernet_addr,
+        interface.ipv4_addr,
+        interface.default_gateway,
+    );
+
+    interface
+}
 
 #[allow(dead_code)]
 pub fn socket_set<'a, 'b: 'a>() -> SocketSet<'a, 'b> {

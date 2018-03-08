@@ -81,7 +81,7 @@ pub fn recv_packet(
     let ipv4_packet = Ipv4Packet::try_new(ipv4_buffer)?;
     ipv4_packet.check_encoding()?;
 
-    if ipv4_packet.dst_addr() != *interface.dev.ipv4_addr() {
+    if ipv4_packet.dst_addr() != *interface.ipv4_addr {
         debug!(
             "Ignoring IPv4 packet with destination {}.",
             ipv4_packet.dst_addr()
@@ -110,7 +110,7 @@ pub fn recv_packet(
 
 /// Returns the next hop for a packet destined to a specified address.
 pub fn ipv4_addr_route(interface: &mut Interface, address: Ipv4Address) -> Ipv4Address {
-    if interface.dev.ipv4_addr().is_member(address) {
+    if interface.ipv4_addr.is_member(address) {
         debug!("{} will be routed through link.", address);
         address
     } else {
