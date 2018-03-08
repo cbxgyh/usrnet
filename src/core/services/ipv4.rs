@@ -2,7 +2,7 @@ use {
     Error,
     Result,
 };
-use core::layers::{
+use core::repr::{
     eth_types,
     EthernetFrame,
     Ipv4Address,

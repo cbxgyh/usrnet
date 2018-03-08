@@ -9,7 +9,7 @@ use {
     Result,
 };
 use core::check::internet_checksum;
-use core::layers::Ipv4Repr;
+use core::repr::Ipv4Repr;
 
 /// Safe representation of a UDP header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -196,7 +196,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Packet<T> {
 
 #[cfg(test)]
 mod tests {
-    use core::layers::{
+    use core::repr::{
         Ipv4Address,
         Ipv4Protocol,
     };

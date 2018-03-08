@@ -1,5 +1,5 @@
 use Error;
-use core::layers::Ipv4Packet;
+use core::repr::Ipv4Packet;
 use core::services::{
     ethernet,
     udp,

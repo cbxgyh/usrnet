@@ -1,3 +1,8 @@
+//! Serialization and deserialization of network packets.
+//!
+//! The `repr` module provides abstractions for serialization and deserializing
+//! packets and frames at different network layers to/from byte buffers.
+
 pub mod arp;
 pub mod ethernet;
 pub mod icmpv4;

@@ -12,7 +12,7 @@ pub mod udp;
 
 use core::arp_cache::ArpCache;
 use core::dev::Device;
-use core::layers::Ipv4Address;
+use core::repr::Ipv4Address;
 
 /// An interface for sending and receiving network packets.
 pub struct Interface {

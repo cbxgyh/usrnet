@@ -7,7 +7,7 @@ use {
     Result,
 };
 use core::dev::Device;
-use core::layers::{
+use core::repr::{
     EthernetAddress,
     Ipv4AddressCidr,
 };

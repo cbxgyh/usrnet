@@ -11,7 +11,7 @@ use std::time::{
     Instant,
 };
 
-use usrnet::core::layers::{
+use usrnet::core::repr::{
     eth_types,
     Arp,
     ArpOp,

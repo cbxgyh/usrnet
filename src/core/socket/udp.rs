@@ -2,7 +2,7 @@ use {
     Error,
     Result,
 };
-use core::layers::{
+use core::repr::{
     Ipv4Protocol,
     Ipv4Repr,
     UdpPacket,

@@ -4,7 +4,7 @@ use {
     Error,
     Result,
 };
-use core::layers::{
+use core::repr::{
     Icmpv4Packet,
     Icmpv4Repr,
     Ipv4Repr,

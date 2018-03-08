@@ -13,7 +13,7 @@ use {
     Error,
     Result,
 };
-use core::layers::{
+use core::repr::{
     EthernetAddress,
     Ipv4Address,
 };

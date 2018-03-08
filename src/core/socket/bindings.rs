@@ -11,7 +11,7 @@ use {
     Error,
     Result,
 };
-use core::layers::Ipv4Address;
+use core::repr::Ipv4Address;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 /// An IPv4 + port binding for TCP, UDP, etc. sockets.
@@ -89,7 +89,7 @@ impl Bindings {
 
 #[cfg(test)]
 mod tests {
-    use core::layers::Ipv4Address;
+    use core::repr::Ipv4Address;
 
     use super::*;
 

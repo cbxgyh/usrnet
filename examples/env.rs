@@ -2,7 +2,7 @@ use std::thread;
 use std::time::Duration;
 use std::vec::Vec;
 
-use usrnet::core::layers::{
+use usrnet::core::repr::{
     EthernetAddress,
     Ipv4Address,
     Ipv4AddressCidr,

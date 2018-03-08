@@ -1,5 +1,5 @@
 use Result;
-use core::layers::{
+use core::repr::{
     Icmpv4DestinationUnreachable,
     Icmpv4Repr,
     Ipv4Packet,

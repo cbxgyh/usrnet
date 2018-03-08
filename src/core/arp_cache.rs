@@ -4,7 +4,7 @@ use std::time::{
     Instant,
 };
 
-use core::layers::{
+use core::repr::{
     EthernetAddress,
     Ipv4Address,
 };

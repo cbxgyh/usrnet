@@ -1,3 +1,8 @@
+//! Communication between endpoints.
+//!
+//! The `socket` module provides abstractions for buffering, sending, and
+//! receiving data between network endpoints.
+
 pub mod bindings;
 pub mod raw;
 pub mod set;
