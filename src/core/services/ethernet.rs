@@ -57,8 +57,8 @@ pub fn recv_frame(
     }
 
     match eth_frame.payload_type() {
-        eth_types::ARP => arp::recv_packet(interface, eth_frame.payload()),
-        eth_types::IPV4 => ipv4::recv_packet(interface, eth_frame.payload(), sockets),
+        eth_types::ARP => arp::recv_packet(interface, &eth_frame),
+        eth_types::IPV4 => ipv4::recv_packet(interface, &eth_frame, sockets),
         i => {
             debug!("Ignoring ethernet frame with type {}.", i);
             Err(Error::NoOp)

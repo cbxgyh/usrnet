@@ -75,10 +75,10 @@ where
 /// network stack.
 pub fn recv_packet(
     interface: &mut Interface,
-    ipv4_buffer: &[u8],
+    eth_frame: &EthernetFrame<&[u8]>,
     sockets: &mut SocketSet,
 ) -> Result<()> {
-    let ipv4_packet = Ipv4Packet::try_new(ipv4_buffer)?;
+    let ipv4_packet = Ipv4Packet::try_new(eth_frame.payload())?;
     ipv4_packet.check_encoding()?;
 
     if ipv4_packet.dst_addr() != *interface.ipv4_addr {
@@ -87,6 +87,14 @@ pub fn recv_packet(
             ipv4_packet.dst_addr()
         );
         return Err(Error::NoOp);
+    }
+
+    // Update ARP cache! This is important for generating IMMEDIATE (not socket
+    // buffered) ICMP echo replies, errors, etc.
+    if eth_frame.src_addr().is_unicast() {
+        interface
+            .arp_cache
+            .set_eth_addr_for_ip(ipv4_packet.src_addr(), eth_frame.src_addr());
     }
 
     for socket in sockets.iter_mut() {

@@ -163,7 +163,7 @@ impl<T: AsRef<[u8]>> Frame<T> {
         Address::try_new(&self.buffer.as_ref()[fields::DST_ADDR]).unwrap()
     }
 
-    pub fn src_addr(&mut self) -> Address {
+    pub fn src_addr(&self) -> Address {
         Address::try_new(&self.buffer.as_ref()[fields::SRC_ADDR]).unwrap()
     }
 

@@ -33,8 +33,8 @@ pub fn send_packet(
 /// Receives an ARP packet from an interface.
 ///
 /// This may result in a response to ARP requests, updating the ARP cache, etc.
-pub fn recv_packet(interface: &mut Interface, arp_packet: &[u8]) -> Result<()> {
-    let arp_repr = Arp::deserialize(arp_packet)?;
+pub fn recv_packet(interface: &mut Interface, eth_frame: &EthernetFrame<&[u8]>) -> Result<()> {
+    let arp_repr = Arp::deserialize(eth_frame.payload())?;
     if arp_repr.target_proto_addr != *interface.ipv4_addr {
         debug!(
             "Ignoring ARP with target IPv4 address {}.",
