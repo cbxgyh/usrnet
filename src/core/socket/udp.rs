@@ -120,4 +120,14 @@ impl<'a> UdpSocket<'a> {
         self.recv_buffer
             .dequeue_with(|&mut (ref buffer, ref addr)| (&buffer[..], addr.clone()))
     }
+
+    /// Returns the number of packets enqueued for sending.
+    pub fn send_enqueued(&self) -> usize {
+        self.send_buffer.len()
+    }
+
+    /// Returns the number of packets enqueued for receiving.
+    pub fn recv_enqueued(&self) -> usize {
+        self.recv_buffer.len()
+    }
 }

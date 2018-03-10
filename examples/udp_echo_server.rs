@@ -2,21 +2,21 @@ extern crate clap;
 extern crate env_logger;
 extern crate usrnet;
 
+use std::time::Duration;
+
 use clap::{
     App,
     Arg,
 };
 
-use usrnet::core::service::Interface;
 use usrnet::core::socket::{
     Bindings,
     SocketAddr,
-    SocketSet,
     TaggedSocket,
 };
 use usrnet::examples::*;
 
-/// Echo's all incoming UDP packets back to the sender.
+/// Echo's incoming UDP packets to the sender.
 fn main() {
     env_logger::init();
 
@@ -37,45 +37,19 @@ fn main() {
         port,
     };
     let addr_binding = bindings.bind_udp(sock_addr).unwrap();
-    let socket = TaggedSocket::Udp(env::udp_socket(&mut interface, addr_binding));
+    let udp_socket = TaggedSocket::Udp(env::udp_socket(&mut interface, addr_binding));
 
     let mut socket_set = env::socket_set();
-    let handle = socket_set.add_socket(socket).unwrap();
-
-    let mut buffer = [0; 4096];
+    let udp_handle = socket_set.add_socket(udp_socket).unwrap();
 
     println!("Running UDP echo server; You can use udp_echo_client.py to generate UDP packets.");
 
     loop {
-        echo(&mut interface, &mut socket_set, handle, &mut buffer[..]);
-    }
-}
-
-fn echo(interface: &mut Interface, socket_set: &mut SocketSet, handle: usize, buffer: &mut [u8]) {
-    let (payload_len, addr) = recv(interface, socket_set, handle, buffer);
-
-    println!("Echo to {}!", addr);
-
-    socket_set
-        .socket(handle)
-        .as_udp_socket()
-        .send(payload_len, addr)
-        .map(|payload| payload.copy_from_slice(&buffer[.. payload_len]))
-        .unwrap();
-}
-
-fn recv(
-    interface: &mut Interface,
-    socket_set: &mut SocketSet,
-    handle: usize,
-    buffer: &mut [u8],
-) -> (usize, SocketAddr) {
-    loop {
-        if let Ok((payload, addr)) = socket_set.socket(handle).as_udp_socket().recv() {
-            (&mut buffer[.. payload.len()]).copy_from_slice(payload);
-            return (payload.len(), addr);
-        }
-
-        env::tick(interface, socket_set);
+        udp_echo(
+            &mut interface,
+            &mut socket_set,
+            udp_handle,
+            Duration::from_secs(60),
+        );
     }
 }
