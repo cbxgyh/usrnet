@@ -61,6 +61,15 @@ fn ping_default_gateway() {
 }
 
 #[test]
+fn ping_google_dns_servers() {
+    context::run(|interface, socket_set| {
+        assert!(
+            ping_addr(interface, socket_set, Ipv4Address::new([8, 8, 8, 8])).unwrap() < *TIMEOUT
+        );
+    });
+}
+
+#[test]
 fn ping_unknown_ip() {
     context::run(|interface, socket_set| {
         assert!(ping_addr(interface, socket_set, Ipv4Address::new([10, 0, 0, 128])).is_none());
