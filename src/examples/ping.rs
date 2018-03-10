@@ -13,11 +13,9 @@ use core::repr::{
     Ipv4Repr,
     ipv4_protocols,
 };
-use core::service::{
-    socket,
-    Interface,
-};
+use core::service::Interface;
 use core::socket::SocketSet;
+use examples::env;
 
 /// Sends an ICMP ping request to a host via a raw IP socket.
 pub fn ping(
@@ -39,7 +37,8 @@ pub fn ping(
         payload_len: (icmp_repr.buffer_len() + payload.len()) as u16,
     };
 
-    socket_set
+    // Socket may have a full send buffer!
+    while let Err(_) = socket_set
         .socket(raw_handle)
         .as_raw_socket()
         .send(ip_repr.buffer_len())
@@ -50,11 +49,11 @@ pub fn ping(
             let mut icmp_packet = Icmpv4Packet::try_new(ip_packet.payload_mut()).unwrap();
             icmp_packet.payload_mut().copy_from_slice(payload);
             icmp_repr.serialize(&mut icmp_packet).unwrap();
-        })
-        .unwrap();
+        }) {
+        env::tick(interface, socket_set);
+    }
 
     let send_at = Instant::now();
-    socket::send(interface, socket_set);
 
     loop {
         let waiting = Instant::now().duration_since(send_at);
@@ -96,7 +95,6 @@ pub fn ping(
             return Some(waiting);
         }
 
-        socket::send(interface, socket_set);
-        socket::recv(interface, socket_set);
+        env::tick(interface, socket_set);
     }
 }

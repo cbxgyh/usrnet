@@ -12,11 +12,9 @@ use core::repr::{
     EthernetFrame,
     Ipv4Address,
 };
-use core::service::{
-    socket,
-    Interface,
-};
+use core::service::Interface;
 use core::socket::SocketSet;
+use examples::env;
 
 /// Sends an ARP request for an IP address via a raw Ethernet socket.
 pub fn arping(
@@ -36,7 +34,8 @@ pub fn arping(
 
     let eth_frame_len = EthernetFrame::<&[u8]>::buffer_len(arp_repr.buffer_len());
 
-    socket_set
+    // Socket may have a full send buffer!
+    while let Err(_) = socket_set
         .socket(raw_handle)
         .as_raw_socket()
         .send(eth_frame_len)
@@ -46,11 +45,11 @@ pub fn arping(
             eth_frame.set_dst_addr(EthernetAddress::BROADCAST);
             eth_frame.set_payload_type(eth_types::ARP);
             arp_repr.serialize(eth_frame.payload_mut()).unwrap();
-        })
-        .unwrap();
+        }) {
+        env::tick(interface, socket_set);
+    }
 
     let send_at = Instant::now();
-    socket::send(interface, socket_set);
 
     loop {
         let waiting = Instant::now().duration_since(send_at);
@@ -80,7 +79,6 @@ pub fn arping(
             return Some((waiting, eth_addr));
         }
 
-        socket::send(interface, socket_set);
-        socket::recv(interface, socket_set);
+        env::tick(interface, socket_set);
     }
 }

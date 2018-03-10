@@ -4,14 +4,12 @@ use std::time::{
 };
 use std::vec::Vec;
 
-use core::service::{
-    socket,
-    Interface,
-};
+use core::service::Interface;
 use core::socket::{
     SocketAddr,
     SocketSet,
 };
+use examples::env;
 
 /// Waits for a single UDP packet and echo's it to the sender.
 pub fn udp_echo(
@@ -28,7 +26,7 @@ pub fn udp_echo(
             .send(payload.len(), addr)
             .map(|buffer| buffer.copy_from_slice(&payload))
         {
-            socket::send(interface, socket_set);
+            env::tick(interface, socket_set);
         }
 
         // Now drain to guarantee the UDP response makes it onto the link.
@@ -37,7 +35,7 @@ pub fn udp_echo(
             .as_udp_socket()
             .send_enqueued() > 0
         {
-            socket::send(interface, socket_set);
+            env::tick(interface, socket_set);
         }
 
         Some(())
@@ -62,8 +60,7 @@ fn recv(
             return Some((buf, addr));
         }
 
-        socket::send(interface, socket_set);
-        socket::recv(interface, socket_set);
+        env::tick(interface, socket_set);
     }
 
     None
