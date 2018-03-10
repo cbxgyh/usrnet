@@ -8,7 +8,7 @@ use usrnet::core::repr::{
     Ipv4Address,
     Ipv4AddressCidr,
 };
-use usrnet::core::services::{
+use usrnet::core::service::{
     socket,
     Interface,
 };
@@ -27,20 +27,20 @@ use usrnet::core::storage::{
 use usrnet::core::time::SystemEnv;
 
 lazy_static! {
-    pub static ref DEFAULT_IPV4_ADDR: Ipv4Address = {
+    static ref DEFAULT_IPV4_ADDR: Ipv4Address = {
         Ipv4Address::new([10, 0, 0, 102])
     };
 
-    pub static ref DEFAULT_IPV4_ADDR_CIDR: Ipv4AddressCidr = {
+    static ref DEFAULT_IPV4_ADDR_CIDR: Ipv4AddressCidr = {
         Ipv4AddressCidr::new(*DEFAULT_IPV4_ADDR, 24)
     };
 
-    pub static ref DEFAULT_IPV4_GATEWAY: Ipv4Address = {
+    static ref DEFAULT_IPV4_GATEWAY: Ipv4Address = {
         Ipv4Address::new([10, 0, 0, 101])
     };
 
-    pub static ref DEFAULT_ETH_ADDR: EthernetAddress = {
-        // Use a local MAC address!
+    static ref DEFAULT_ETH_ADDR: EthernetAddress = {
+        // Local MAC address!
         EthernetAddress::new([0x06, 0x11, 0x22, 0x33, 0x44, 0x55])
     };
 }

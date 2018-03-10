@@ -9,7 +9,7 @@ use core::repr::{
     Icmpv4Repr,
     Ipv4Repr,
 };
-use core::services::{
+use core::service::{
     Interface,
     ipv4,
 };

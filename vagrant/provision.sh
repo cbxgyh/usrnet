@@ -12,6 +12,7 @@ sudo chsh -s /bin/zsh vagrant
 # Setup core packages.
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
     arping              \
+    traceroute          \
     bridge-utils        \
     build-essential     \
     curl                \

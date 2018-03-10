@@ -10,7 +10,7 @@ use core::repr::{
     Ipv4Repr,
     ipv4_protocols,
 };
-use core::services::{
+use core::service::{
     arp,
     ethernet,
     udp,

@@ -6,7 +6,7 @@ use core::repr::{
     eth_types,
     EthernetFrame,
 };
-use core::services::{
+use core::service::{
     arp,
     Interface,
     ipv4,

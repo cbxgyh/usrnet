@@ -1,3 +1,4 @@
+extern crate clap;
 extern crate env_logger;
 #[macro_use]
 extern crate lazy_static;
@@ -5,7 +6,12 @@ extern crate usrnet;
 
 mod env;
 
-use usrnet::core::services::Interface;
+use clap::{
+    App,
+    Arg,
+};
+
+use usrnet::core::service::Interface;
 use usrnet::core::socket::{
     Bindings,
     SocketAddr,
@@ -13,20 +19,27 @@ use usrnet::core::socket::{
     TaggedSocket,
 };
 
-lazy_static! {
-    static ref BIND_ADDR: SocketAddr = SocketAddr {
-        addr: *env::DEFAULT_IPV4_ADDR,
-        port: 4096,
-    };
-}
-
 /// Echo's all incoming UDP packets back to the sender.
 fn main() {
     env_logger::init();
 
+    let matches = App::new("ping")
+        .arg(Arg::with_name("PORT").value_name("PORT").takes_value(true))
+        .get_matches();
+
+    let port = matches
+        .value_of("PORT")
+        .or(Some("4096"))
+        .and_then(|port| port.parse::<u16>().ok())
+        .expect("Bad UDP port!");
+
     let mut interface = env::default_interface();
     let bindings = Bindings::new();
-    let addr_binding = bindings.bind_udp(*BIND_ADDR).unwrap();
+    let sock_addr = SocketAddr {
+        addr: *interface.ipv4_addr,
+        port,
+    };
+    let addr_binding = bindings.bind_udp(sock_addr).unwrap();
     let socket = TaggedSocket::Udp(env::udp_socket(addr_binding));
 
     let mut socket_set = env::socket_set();
@@ -44,7 +57,7 @@ fn main() {
 fn echo(interface: &mut Interface, socket_set: &mut SocketSet, handle: usize, buffer: &mut [u8]) {
     let (payload_len, addr) = recv(interface, socket_set, handle, buffer);
 
-    println!("Echo {:?} from {}!", &buffer[.. payload_len], addr);
+    println!("Echo to {}!", addr);
 
     socket_set
         .socket(handle)

@@ -8,7 +8,7 @@ use core::repr::{
     UdpPacket,
     UdpRepr,
 };
-use core::services::{
+use core::service::{
     Interface,
     icmpv4,
     ipv4,

@@ -10,7 +10,7 @@ use core::repr::{
     EthernetFrame,
     Ipv4Address,
 };
-use core::services::{
+use core::service::{
     ethernet,
     Interface,
 };

@@ -8,6 +8,10 @@ mod env;
 
 use std::process;
 use std::str::FromStr;
+use std::time::{
+    Duration,
+    Instant,
+};
 
 use clap::{
     App,
@@ -28,6 +32,10 @@ use usrnet::core::socket::{
     TaggedSocket,
 };
 
+lazy_static! {
+    static ref TIMEOUT: Duration = Duration::from_millis(1000);
+}
+
 /// Opens and brings UP a Linux TAP interface.
 fn main() {
     env_logger::init();
@@ -36,14 +44,15 @@ fn main() {
         .arg(
             Arg::with_name("ADDRESS")
                 .value_name("ADDRESS")
-                .takes_value(true),
+                .takes_value(true)
+                .required(true),
         )
         .get_matches();
 
     let ping_addr = matches
         .value_of("ADDRESS")
         .map(|addr| Ipv4Address::from_str(addr).unwrap())
-        .unwrap_or(*env::DEFAULT_IPV4_GATEWAY);
+        .expect("Bad IP address!");
 
     let mut interface = env::default_interface();
     let mut socket_set = env::socket_set();
@@ -54,7 +63,7 @@ fn main() {
     let icmp_repr = Icmpv4Repr::EchoRequest { id: 42, seq: 1 };
 
     let ip_repr = Ipv4Repr {
-        src_addr: *env::DEFAULT_IPV4_ADDR,
+        src_addr: *interface.ipv4_addr,
         dst_addr: ping_addr,
         protocol: Ipv4Protocol::ICMP,
         payload_len: icmp_repr.buffer_len() as u16,
@@ -78,12 +87,14 @@ fn main() {
         ping_addr
     );
 
+    let now = Instant::now();
+
     // Loop until ping reply arrives.
-    loop {
+    while Instant::now().duration_since(now) < *TIMEOUT {
         while let Ok(ip_buffer) = socket_set.socket(raw_handle).as_raw_socket().recv() {
             let ip_packet = Ipv4Packet::try_new(ip_buffer).unwrap();
             if ip_packet.protocol() != ipv4_protocols::ICMP || ip_packet.src_addr() != ping_addr
-                || ip_packet.dst_addr() != *env::DEFAULT_IPV4_ADDR
+                || ip_packet.dst_addr() != *interface.ipv4_addr
             {
                 continue;
             }
@@ -105,4 +116,7 @@ fn main() {
 
         env::tick(&mut interface, &mut socket_set);
     }
+
+    eprintln!("Timeout!");
+    process::exit(1);
 }

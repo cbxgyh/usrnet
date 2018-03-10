@@ -1,6 +1,6 @@
 use Error;
 use core::repr::Ipv4Packet;
-use core::services::{
+use core::service::{
     ethernet,
     udp,
     Interface,
