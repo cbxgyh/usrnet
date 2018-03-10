@@ -13,11 +13,15 @@ An Ubuntu dev VM is provided via [Vagrant](https://www.vagrantup.com/) to build 
 
 ## Examples
 
-The [examples directory](/examples) contains simplified versions of some common networking programs. You can run them via `cargo run --example <name> -- <args..>`. As a basic sanity check you can run the dev_up example and issue a ping to 10.0.0.102 (default IP for example devices) and see if you get a response.
+The [examples](/examples) directory contains simplified versions of some common networking programs. You can run them via `cargo run --example <name> -- <args..>`. As a basic sanity check you can run the dev_up example and issue a ping to 10.0.0.102 (default IP for example devices) and see if you get a response.
 
 These examples use a [Linux TAP](http://backreference.org/2010/03/26/tuntap-interface-tutorial/) interface to transmit raw ethernet frames. **This means the examples will only run on a Linux system!**
 
 [tap.sh](vagrant/tap.sh) provides a clear explanation of the network topology in use so you can debug any issues you may run into. You can update [env.rs](examples/env.rs) if you wish to change the network topology (e.g. IP address of your device) for running the examples.
+
+## Tests
+
+In addition to unit tests throughout the code, the [tests](/tests) directory contains integration tests for some example programs. **These tests will only run successfully on a Linux system** for the same reason as the examples. When developing on a different system, you can use `cargo test --lib` to avoid running these tests.
 
 ## Resources
 

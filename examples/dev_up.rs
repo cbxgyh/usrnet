@@ -1,9 +1,7 @@
 extern crate env_logger;
-#[macro_use]
-extern crate lazy_static;
 extern crate usrnet;
 
-mod env;
+use usrnet::examples::*;
 
 /// Opens and brings UP a Linux TAP interface. You should be able to issue ping
 /// requests to env::DEFAULT_IPV4_ADDR and get responses.

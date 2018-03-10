@@ -2,11 +2,14 @@
 #[macro_use]
 extern crate assert_matches;
 extern crate byteorder;
+#[macro_use]
+extern crate lazy_static;
 extern crate libc;
 #[macro_use]
 extern crate log;
 
 pub mod core;
+pub mod examples;
 
 #[cfg(target_os = "linux")]
 pub mod linux;

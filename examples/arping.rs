@@ -4,8 +4,6 @@ extern crate env_logger;
 extern crate lazy_static;
 extern crate usrnet;
 
-mod env;
-
 use std::process;
 use std::str::FromStr;
 use std::time::{
@@ -30,6 +28,7 @@ use usrnet::core::socket::{
     RawType,
     TaggedSocket,
 };
+use usrnet::examples::*;
 
 lazy_static! {
     static ref TIMEOUT: Duration = Duration::from_millis(1000);
@@ -55,7 +54,7 @@ fn main() {
 
     let mut interface = env::default_interface();
     let mut socket_set = env::socket_set();
-    let raw_socket = TaggedSocket::Raw(env::raw_socket(RawType::Ethernet));
+    let raw_socket = TaggedSocket::Raw(env::raw_socket(&mut interface, RawType::Ethernet));
     let raw_handle = socket_set.add_socket(raw_socket).unwrap();
 
     // Send an ARP request.

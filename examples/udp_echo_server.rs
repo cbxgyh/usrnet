@@ -1,10 +1,6 @@
 extern crate clap;
 extern crate env_logger;
-#[macro_use]
-extern crate lazy_static;
 extern crate usrnet;
-
-mod env;
 
 use clap::{
     App,
@@ -18,6 +14,7 @@ use usrnet::core::socket::{
     SocketSet,
     TaggedSocket,
 };
+use usrnet::examples::*;
 
 /// Echo's all incoming UDP packets back to the sender.
 fn main() {
@@ -40,7 +37,7 @@ fn main() {
         port,
     };
     let addr_binding = bindings.bind_udp(sock_addr).unwrap();
-    let socket = TaggedSocket::Udp(env::udp_socket(addr_binding));
+    let socket = TaggedSocket::Udp(env::udp_socket(&mut interface, addr_binding));
 
     let mut socket_set = env::socket_set();
     let handle = socket_set.add_socket(socket).unwrap();
