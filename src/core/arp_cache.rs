@@ -1,3 +1,5 @@
+//! Management and caching of Ethernet/IP address mappings.
+
 use std::collections::HashMap;
 use std::time::{
     Duration,

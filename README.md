@@ -1,6 +1,6 @@
-# README
+# usrnet
 
-*usrnet* is a user space TCP/IP stack I wrote to learn about networking.
+*usrnet* is a user space TCP/IP stack I'm writing to learn about networking. It is heavily inspired by [smoltcp](https://github.com/m-labs/smoltcp), an awesome well documented network stack which I used as a guide when building *usrnet*.
 
 ## Building
 
@@ -19,9 +19,40 @@ These examples use a [Linux TAP](http://backreference.org/2010/03/26/tuntap-inte
 
 [tap.sh](vagrant/tap.sh) provides a clear explanation of the network topology in use so you can debug any issues you may run into. You can update [env.rs](examples/env.rs) if you wish to change the network topology (e.g. IP address of your device) for running the examples.
 
+Check out the [documentation](https://andreimaximov.github.io/usrnet-docs) for more info.
+
 ## Tests
 
-In addition to unit tests throughout the code, the [tests](/tests) directory contains integration tests for some example programs. **These tests will only run successfully on a Linux system** for the same reason as the examples. When developing on a different system, you can use `cargo test --lib` to avoid running these tests.
+In addition to unit tests, the [tests](/tests) directory contains integration tests for some example programs. **These tests will only run successfully on a Linux system** for the same reason as the examples. When developing on a different system, you can use `cargo test --lib` to avoid running these tests.
+
+## Features
+
+I'm writing *usrnet* for learning purposes so it supports only the most basic features, many of which are not complete but are listed under [Upcoming](#upcoming). Feel free to open an issue if you find a bug in an existing feature!
+
+### Ethernet
+
+- Uses Ethernet II frames for link layer
+- Supports unicast and broadcast Ethernet frames
+- Supports using and responding to ARP for IP/Ethernet address mapping
+- Supports Raw Ethernet sockets for writing programs like [arping](/examples/arping.rs)
+
+### IPv4
+
+- Uses default options for IPv4 headers found [here](/src/core/repr/ipv4.rs)
+- Supports a default gateway for routing to the internet
+- Supports `ping` with ICMP echo request/reply messages
+- Supports Raw IPv4 sockets for writing programs like [ping](/examples/ping.rs)
+
+### UDP
+
+- Supports UDP sockets for writing programs like [UDP echo servers](/examples/udp_echo_server.rs)
+- Supports `traceroute` with ICMP destination unreachable responses to UDP packets with an unbound port
+
+### Upcoming
+
+- DNS lookup
+- DHCP address assignment
+- TCP sockets
 
 ## Resources
 

@@ -1,3 +1,5 @@
+//! Sending/receiving raw Ethernet frames.
+
 use Result;
 
 /// A low level interface for sending frames.

@@ -1,3 +1,5 @@
+//! Storage/buffers for packets, frames, etc.
+
 pub mod ring;
 pub mod slice;
 

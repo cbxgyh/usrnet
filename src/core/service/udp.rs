@@ -49,7 +49,7 @@ pub fn recv_packet(
     interface: &mut Interface,
     ipv4_repr: &Ipv4Repr,
     ipv4_packet: &Ipv4Packet<&[u8]>,
-    sockets: &mut SocketSet,
+    socket_set: &mut SocketSet,
 ) -> Result<()> {
     let udp_packet = UdpPacket::try_new(ipv4_packet.payload())?;
     udp_packet.check_encoding(ipv4_repr)?;
@@ -58,7 +58,7 @@ pub fn recv_packet(
 
     let packet = Packet::Udp(*ipv4_repr, udp_repr, udp_packet.payload());
     let mut unreachable = true;
-    for socket in sockets.iter_mut() {
+    for socket in socket_set.iter_mut() {
         match socket.recv_forward(&packet) {
             Ok(_) => unreachable = false,
             _ => {}

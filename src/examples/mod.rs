@@ -1,3 +1,5 @@
+//! Sample programs.
+
 pub mod arping;
 pub mod env;
 pub mod ping;

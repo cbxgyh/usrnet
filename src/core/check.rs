@@ -1,3 +1,5 @@
+//! Compute internet checksums.
+
 use std::iter::Cloned;
 use std::slice::Iter as SliceIter;
 

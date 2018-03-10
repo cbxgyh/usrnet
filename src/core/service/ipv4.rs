@@ -76,7 +76,7 @@ where
 pub fn recv_packet(
     interface: &mut Interface,
     eth_frame: &EthernetFrame<&[u8]>,
-    sockets: &mut SocketSet,
+    socket_set: &mut SocketSet,
 ) -> Result<()> {
     let ipv4_packet = Ipv4Packet::try_new(eth_frame.payload())?;
     ipv4_packet.check_encoding()?;
@@ -97,7 +97,7 @@ pub fn recv_packet(
             .set_eth_addr_for_ip(ipv4_packet.src_addr(), eth_frame.src_addr());
     }
 
-    for socket in sockets.iter_mut() {
+    for socket in socket_set.iter_mut() {
         let packet = Packet::Ipv4(ipv4_packet.as_ref());
         match socket.recv_forward(&packet) {
             _ => {}
@@ -107,7 +107,7 @@ pub fn recv_packet(
     let ipv4_repr = Ipv4Repr::deserialize(&ipv4_packet)?;
 
     match ipv4_packet.protocol() {
-        ipv4_protocols::UDP => udp::recv_packet(interface, &ipv4_repr, &ipv4_packet, sockets),
+        ipv4_protocols::UDP => udp::recv_packet(interface, &ipv4_repr, &ipv4_packet, socket_set),
         ipv4_protocols::ICMP => icmpv4::recv_packet(interface, &ipv4_repr, ipv4_packet.payload()),
         i => {
             debug!("Ignoring IPv4 packet with type {}.", i);

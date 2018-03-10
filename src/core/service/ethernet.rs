@@ -37,7 +37,7 @@ where
 pub fn recv_frame(
     interface: &mut Interface,
     eth_buffer: &[u8],
-    sockets: &mut SocketSet,
+    socket_set: &mut SocketSet,
 ) -> Result<()> {
     let eth_frame = EthernetFrame::try_new(eth_buffer)?;
 
@@ -49,7 +49,7 @@ pub fn recv_frame(
         return Err(Error::NoOp);
     }
 
-    for socket in sockets.iter_mut() {
+    for socket in socket_set.iter_mut() {
         let packet = Packet::Raw(eth_frame.as_ref());
         match socket.recv_forward(&packet) {
             _ => {}
@@ -58,7 +58,7 @@ pub fn recv_frame(
 
     match eth_frame.payload_type() {
         eth_types::ARP => arp::recv_packet(interface, &eth_frame),
-        eth_types::IPV4 => ipv4::recv_packet(interface, &eth_frame, sockets),
+        eth_types::IPV4 => ipv4::recv_packet(interface, &eth_frame, socket_set),
         i => {
             debug!("Ignoring ethernet frame with type {}.", i);
             Err(Error::NoOp)

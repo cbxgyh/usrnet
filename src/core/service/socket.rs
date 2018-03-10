@@ -13,8 +13,8 @@ use core::socket::{
 };
 
 /// Sends out any packets enqueued in the sockets via an interface.
-pub fn send(interface: &mut Interface, sockets: &mut SocketSet) {
-    for socket in sockets.iter_mut() {
+pub fn send(interface: &mut Interface, socket_set: &mut SocketSet) {
+    for socket in socket_set.iter_mut() {
         loop {
             let ok_or_err = socket.send_forward(|packet| {
                 match packet {
@@ -63,13 +63,13 @@ pub fn send(interface: &mut Interface, sockets: &mut SocketSet) {
 
 /// Reads frames from an interface and forwards packets to the appropriate
 /// sockets.
-pub fn recv(interface: &mut Interface, sockets: &mut SocketSet) {
+pub fn recv(interface: &mut Interface, socket_set: &mut SocketSet) {
     let mut eth_buffer = vec![0; interface.dev.max_transmission_unit()];
 
     loop {
         match interface.dev.recv(&mut eth_buffer) {
             Ok(buffer_len) => {
-                match ethernet::recv_frame(interface, &mut eth_buffer[.. buffer_len], sockets) {
+                match ethernet::recv_frame(interface, &mut eth_buffer[.. buffer_len], socket_set) {
                     Ok(_) => continue,
                     Err(Error::Address) => continue,
                     Err(Error::NoOp) => continue,

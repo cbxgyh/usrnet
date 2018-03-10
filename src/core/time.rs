@@ -1,3 +1,5 @@
+//! Abstractions for providing the current time.
+
 use std::time::Instant;
 
 /// An environment that provides the current time.

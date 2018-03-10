@@ -1,3 +1,5 @@
+//! Core, platform independent networking code.
+
 pub mod arp_cache;
 pub mod check;
 pub mod dev;
