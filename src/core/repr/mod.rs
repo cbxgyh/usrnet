@@ -24,6 +24,7 @@ pub use self::icmpv4::{
     DestinationUnreachable as Icmpv4DestinationUnreachable,
     Packet as Icmpv4Packet,
     Repr as Icmpv4Repr,
+    TimeExceeded as Icmpv4TimeExceeded,
 };
 pub use self::ipv4::{
     Address as Ipv4Address,

@@ -25,6 +25,10 @@ pub enum Repr {
         reason: DestinationUnreachable,
         ipv4_header_len: usize,
     },
+    TimeExceeded {
+        reason: TimeExceeded,
+        ipv4_header_len: usize,
+    },
     #[doc(hidden)] ___Exhaustive,
 }
 
@@ -34,12 +38,21 @@ pub enum DestinationUnreachable {
     #[doc(hidden)] ___Exhaustive,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TimeExceeded {
+    TTLExpired,
+    #[doc(hidden)] ___Exhaustive,
+}
+
 impl Repr {
     /// Returns the ICMP packet size needed to serialize this ICMP
     /// representation.
     pub fn buffer_len(&self) -> usize {
         match *self {
             Repr::DestinationUnreachable {
+                ipv4_header_len, ..
+            } => ipv4_header_len + 16,
+            Repr::TimeExceeded {
                 ipv4_header_len, ..
             } => ipv4_header_len + 16,
             _ => 8,
@@ -65,6 +78,18 @@ impl Repr {
             )
         }
 
+        fn ipv4_header_len<T>(packet: &Packet<T>) -> Result<usize>
+        where
+            T: AsRef<[u8]>,
+        {
+            // IP header (20 bytes) + payload (8 bytes) minimum!
+            if packet.payload().len() < 28 {
+                Err(Error::Malformed)
+            } else {
+                Ok(packet.payload().len() - 8)
+            }
+        }
+
         match (packet._type(), packet.code()) {
             (0, 0) => {
                 let (id, seq) = echo_id_seq(packet);
@@ -74,18 +99,14 @@ impl Repr {
                 let (id, seq) = echo_id_seq(packet);
                 Ok(Repr::EchoRequest { id, seq })
             }
-            (3, 3) => {
-                // IP header (20 bytes) + payload (8 bytes) minimum!
-                if packet.payload().len() < 28 {
-                    Err(Error::Malformed)
-                } else {
-                    let ipv4_header_len = packet.payload().len() - 8;
-                    Ok(Repr::DestinationUnreachable {
-                        reason: DestinationUnreachable::PortUnreachable,
-                        ipv4_header_len,
-                    })
-                }
-            }
+            (3, 3) => Ok(Repr::DestinationUnreachable {
+                reason: DestinationUnreachable::PortUnreachable,
+                ipv4_header_len: ipv4_header_len(packet)?,
+            }),
+            (11, 0) => Ok(Repr::TimeExceeded {
+                reason: TimeExceeded::TTLExpired,
+                ipv4_header_len: ipv4_header_len(packet)?,
+            }),
             _ => Err(Error::Malformed),
         }
     }
@@ -110,6 +131,25 @@ impl Repr {
                 .unwrap();
         };
 
+        fn error<T>(
+            packet: &mut Packet<T>,
+            ipv4_header_len: usize,
+            type_of: u8,
+            code: u8,
+        ) -> Result<()>
+        where
+            T: AsRef<[u8]> + AsMut<[u8]>,
+        {
+            if packet.payload().len() != ipv4_header_len + 8 {
+                return Err(Error::Malformed);
+            }
+            packet.set_type(type_of);
+            packet.set_code(code);
+            let zeros = [0; 4];
+            packet.header_mut().copy_from_slice(&zeros[..]);
+            Ok(())
+        };
+
         match *self {
             Repr::EchoReply { id, seq } => echo(packet, 0, id, seq),
             Repr::EchoRequest { id, seq } => echo(packet, 8, id, seq),
@@ -117,17 +157,21 @@ impl Repr {
                 reason,
                 ipv4_header_len,
             } => {
-                // IP header + payload (8 bytes)!
-                if packet.payload().len() != ipv4_header_len + 8 {
-                    return Err(Error::Malformed);
-                }
-                packet.set_type(3);
-                match reason {
-                    DestinationUnreachable::PortUnreachable => packet.set_code(3),
+                let code = match reason {
+                    DestinationUnreachable::PortUnreachable => 3,
                     _ => unreachable!(),
                 };
-                let zeros = [0; 4];
-                packet.header_mut().copy_from_slice(&zeros[..]);
+                error(packet, ipv4_header_len, 3, code)?;
+            }
+            Repr::TimeExceeded {
+                reason,
+                ipv4_header_len,
+            } => {
+                let code = match reason {
+                    TimeExceeded::TTLExpired => 0,
+                    _ => unreachable!(),
+                };
+                error(packet, ipv4_header_len, 11, code)?;
             }
             _ => unreachable!(),
         };
