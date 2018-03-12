@@ -1,17 +1,11 @@
+#[macro_use]
 extern crate clap;
 extern crate env_logger;
-#[macro_use]
-extern crate lazy_static;
 extern crate usrnet;
 
 use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
-
-use clap::{
-    App,
-    Arg,
-};
 
 use usrnet::core::repr::Ipv4Address;
 use usrnet::core::socket::{
@@ -20,27 +14,26 @@ use usrnet::core::socket::{
 };
 use usrnet::examples::*;
 
-lazy_static! {
-    static ref TIMEOUT: Duration = Duration::from_millis(1000);
-}
-
 /// Sends an ARP request for an IPv4 address.
 fn main() {
     env_logger::init();
 
-    let matches = App::new("ping")
-        .arg(
-            Arg::with_name("ADDRESS")
-                .value_name("ADDRESS")
-                .takes_value(true)
-                .required(true),
-        )
-        .get_matches();
+    let matches = clap_app!(app =>
+        (@arg ADDRESS:    +takes_value +required "Address to arping")
+        (@arg TIMEOUT:    +takes_value --timeout "Timeout in milliseconds for each ARP packet")
+    ).get_matches();
 
     let arping_addr = matches
         .value_of("ADDRESS")
-        .map(|addr| Ipv4Address::from_str(addr).unwrap())
+        .and_then(|addr| Ipv4Address::from_str(addr).ok())
         .expect("Bad IP address!");
+
+    let timeout = matches
+        .value_of("TIMEOUT")
+        .or(Some("1000"))
+        .and_then(|timeout| timeout.parse::<u64>().ok())
+        .map(|timeout| Duration::from_millis(timeout))
+        .expect("Bad timeout!");
 
     let mut interface = env::default_interface();
     let mut socket_set = env::socket_set();
@@ -55,7 +48,7 @@ fn main() {
             &mut socket_set,
             raw_handle,
             arping_addr,
-            *TIMEOUT,
+            timeout,
         ) {
             Some((time, eth_addr)) => println!(
                 "28 bytes from {} ({}) index={} time={:.2} ms",

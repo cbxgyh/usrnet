@@ -13,10 +13,7 @@ use std::time::{
 };
 
 use usrnet::core::repr::Ipv4Address;
-use usrnet::core::service::{
-    socket,
-    Interface,
-};
+use usrnet::core::service::Interface;
 use usrnet::core::socket::{
     RawType,
     SocketSet,
@@ -91,8 +88,8 @@ fn ping_responses() {
 
         let start_at = Instant::now();
 
-        while Instant::now() - start_at < Duration::from_secs(2) {
-            socket::recv(interface, socket_set);
+        while Instant::now() - start_at < Duration::from_secs(1) {
+            env::tick(interface, socket_set);
         }
 
         ping.join().unwrap();

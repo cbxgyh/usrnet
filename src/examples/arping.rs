@@ -63,12 +63,9 @@ pub fn arping(
             .and_then(|eth_buffer| {
                 let eth_frame = EthernetFrame::try_new(eth_buffer)?;
                 if eth_frame.payload_type() != eth_types::ARP {
-                    Err(Error::NoOp)
-                } else {
-                    Ok(eth_frame)
+                    return Err(Error::NoOp);
                 }
-            })
-            .and_then(|eth_frame| {
+
                 let arp_repr = Arp::deserialize(eth_frame.payload())?;
                 if arp_repr.op == ArpOp::Reply && arp_repr.source_proto_addr == arping_addr {
                     Ok(arp_repr.source_hw_addr)

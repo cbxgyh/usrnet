@@ -1,13 +1,9 @@
+#[macro_use]
 extern crate clap;
 extern crate env_logger;
 extern crate usrnet;
 
 use std::time::Duration;
-
-use clap::{
-    App,
-    Arg,
-};
 
 use usrnet::core::socket::{
     Bindings,
@@ -20,9 +16,9 @@ use usrnet::examples::*;
 fn main() {
     env_logger::init();
 
-    let matches = App::new("ping")
-        .arg(Arg::with_name("PORT").value_name("PORT").takes_value(true))
-        .get_matches();
+    let matches = clap_app!(app =>
+        (@arg PORT: +takes_value "UDP port to bind")
+    ).get_matches();
 
     let port = matches
         .value_of("PORT")
@@ -42,7 +38,7 @@ fn main() {
     let mut socket_set = env::socket_set();
     let udp_handle = socket_set.add_socket(udp_socket).unwrap();
 
-    println!("Running UDP echo server; You can use udp_echo_client.py to generate UDP packets.");
+    println!("Running UDP echo server on port {}; You can use udp_echo_client.py to generate UDP packets.", port);
 
     loop {
         udp_echo(

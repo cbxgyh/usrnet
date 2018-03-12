@@ -69,15 +69,13 @@ pub fn ping(
                 if ip_packet.protocol() != ipv4_protocols::ICMP || ip_packet.src_addr() != ping_addr
                     || ip_packet.dst_addr() != *interface.ipv4_addr
                 {
-                    Err(Error::NoOp)
-                } else {
-                    Ok(ip_packet)
+                    return Err(Error::NoOp);
                 }
-            })
-            .and_then(|ip_packet| {
+
                 let icmp_packet = Icmpv4Packet::try_new(ip_packet.payload())?;
                 icmp_packet.check_encoding()?;
                 let icmp_repr = Icmpv4Repr::deserialize(&icmp_packet)?;
+
                 match icmp_repr {
                     Icmpv4Repr::EchoReply {
                         id: id_reply,
