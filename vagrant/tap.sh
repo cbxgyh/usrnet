@@ -19,7 +19,7 @@
 #    In this script we create br0, a bridge between tap0 and eth1. This enables
 #    communication on the 10.0.0.0/24 subnet but not outside it to the general
 #    internet. Thus we enable routing via the "nat" table for the 10.0.0.0/24 subnet
-#    and use bro (10.0.0.101/24) as a default gateway for Dev! In effect, packets
+#    and use br0 (10.0.0.101/24) as a default gateway for Dev! In effect, packets
 #    arriving at br0 (out default gateway) are forwarded to the internet via eth0.
 #
 # 2) The tap0 will only receive frames if it is UP. As of Linux kernel 2.6.36 TAP

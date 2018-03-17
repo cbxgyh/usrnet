@@ -17,7 +17,7 @@ The [examples](/examples) directory contains simplified versions of some common 
 
 These examples use a [Linux TAP](http://backreference.org/2010/03/26/tuntap-interface-tutorial/) interface to transmit raw ethernet frames. **This means the examples will only run on a Linux system!**
 
-[tap.sh](vagrant/tap.sh) provides a clear explanation of the network topology in use so you can debug any issues you may run into. You can update [env.rs](examples/env.rs) if you wish to change the network topology (e.g. IP address of your device) for running the examples.
+[tap.sh](vagrant/tap.sh) provides a clear explanation of the network topology in use so you can debug any issues you may run into. You can update [env.rs](src/examples/env.rs) if you wish to change the network topology (e.g. IP address of your device) for running the examples.
 
 Check out the [documentation](https://andreimaximov.github.io/usrnet-docs) for more info.
 
@@ -40,13 +40,13 @@ I'm writing *usrnet* for learning purposes so it supports only the most basic fe
 
 - Uses default options for IPv4 headers found [here](/src/core/repr/ipv4.rs)
 - Supports a default gateway for routing to the internet
-- Supports `ping` with ICMP echo request/reply messages
+- Supports ping with ICMP echo request/reply messages
 - Supports Raw IPv4 sockets for writing programs like [ping](/examples/ping.rs)
 
 ### UDP
 
 - Supports UDP sockets for writing programs like [UDP echo servers](/examples/udp_echo_server.rs)
-- Supports `traceroute` with ICMP destination unreachable responses to UDP packets with an unbound port
+- Supports traceroute with ICMP destination unreachable responses to UDP packets with an unbound port
 
 ### Upcoming
 
