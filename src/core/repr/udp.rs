@@ -8,7 +8,6 @@ use {
     Error,
     Result,
 };
-use core::check::internet_checksum;
 use core::repr::Ipv4Repr;
 
 /// A UDP header.
@@ -123,19 +122,7 @@ impl<T: AsRef<[u8]>> Packet<T> {
 
     /// Calculates the packet checksum.
     pub fn gen_packet_checksum(&self, ip_repr: &Ipv4Repr) -> u16 {
-        let mut ip_pseudo_header = [0; 12];
-        (&mut ip_pseudo_header[0 .. 4]).copy_from_slice(ip_repr.src_addr.as_bytes());
-        (&mut ip_pseudo_header[4 .. 8]).copy_from_slice(ip_repr.dst_addr.as_bytes());
-        ip_pseudo_header[9] = ip_repr.protocol as u8;
-        (&mut ip_pseudo_header[10 .. 12])
-            .write_u16::<NetworkEndian>(ip_repr.payload_len)
-            .unwrap();
-
-        let iter = ip_pseudo_header
-            .iter()
-            .chain(self.buffer.as_ref().iter())
-            .cloned();
-        internet_checksum(iter)
+        ip_repr.gen_checksum_with_pseudo_header(self.buffer.as_ref())
     }
 
     pub fn src_port(&self) -> u16 {
@@ -233,7 +220,7 @@ mod tests {
     }
 
     #[test]
-    fn test_packet_with_inconsistent_length() {
+    fn test_packet_with_invalid_length() {
         let buffer: [u8; 16] = [
             0x45, 0x00, 0x00, 0x14, 0x11, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00,
@@ -263,17 +250,15 @@ mod tests {
     fn test_packet_setters() {
         let mut buffer: [u8; 16] = [0; 16];
 
-        {
-            let mut packet = Packet::try_new(&mut buffer[..]).unwrap();
-            packet.set_src_port(1024);
-            packet.set_dst_port(2048);
-            packet.set_length(16);
-            packet.set_checksum(57022);
-            packet.payload_mut()[0] = 9;
-        }
+        let mut packet = Packet::try_new(&mut buffer[..]).unwrap();
+        packet.set_src_port(1024);
+        packet.set_dst_port(2048);
+        packet.set_length(16);
+        packet.set_checksum(57022);
+        packet.payload_mut()[0] = 9;
 
         assert_eq!(
-            &buffer[..],
+            packet.as_ref(),
             &[
                 0x04, 0x00, 0x08, 0x00, 0x00, 0x10, 0xDE, 0xBE, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00,

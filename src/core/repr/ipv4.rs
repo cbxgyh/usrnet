@@ -166,6 +166,7 @@ impl Display for AddressCidr {
 pub enum Protocol {
     ICMP = protocols::ICMP,
     UDP = protocols::UDP,
+    TCP = protocols::TCP,
     #[doc(hidden)] __Nonexhaustive,
 }
 
@@ -224,11 +225,31 @@ impl Repr {
         let checksum = packet.gen_header_checksum();
         packet.set_header_checksum(checksum);
     }
+
+    /// Generates a checksum for the byte buffer, using a pseudo-header
+    /// corresponding to this IP header.
+    pub fn gen_checksum_with_pseudo_header(&self, buffer: &[u8]) -> u16 {
+        let mut ip_pseudo_header = [0; 12];
+        (&mut ip_pseudo_header[0 .. 4]).copy_from_slice(self.src_addr.as_bytes());
+        (&mut ip_pseudo_header[4 .. 8]).copy_from_slice(self.dst_addr.as_bytes());
+        ip_pseudo_header[9] = self.protocol as u8;
+        (&mut ip_pseudo_header[10 .. 12])
+            .write_u16::<NetworkEndian>(self.payload_len)
+            .unwrap();
+
+        let iter = ip_pseudo_header
+            .iter()
+            .chain(buffer.as_ref().iter())
+            .cloned();
+        internet_checksum(iter)
+    }
 }
 
 /// [https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml](https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml)
 pub mod protocols {
     pub const ICMP: u8 = 1;
+
+    pub const TCP: u8 = 6;
 
     pub const UDP: u8 = 17;
 }
