@@ -36,6 +36,7 @@ pub mod proto_types {
     pub const IPV4: u16 = 0x0800;
 }
 
+/// An ARP packet.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Arp {
     pub op: Op,
@@ -46,13 +47,13 @@ pub struct Arp {
 }
 
 impl Arp {
-    /// Returns the buffer size needed to serialize this ARP representation.
+    /// Returns the buffer size needed to serialize the ARP packet.
     pub fn buffer_len(&self) -> usize {
         // 8 for header + 20 for addresses.
         28
     }
 
-    /// Tries to deserialize a buffer into an ARP representation.
+    /// Tries to deserialize a buffer into an ARP packet.
     pub fn deserialize(buffer: &[u8]) -> Result<Arp> {
         if buffer.len() < 28 {
             return Err(Error::Malformed);
@@ -75,7 +76,7 @@ impl Arp {
         })
     }
 
-    /// Serializes the ARP representation into a packet.
+    /// Serializes the ARP packet into a buffer.
     pub fn serialize(&self, buffer: &mut [u8]) -> Result<()> {
         if self.buffer_len() > buffer.len() {
             return Err(Error::Exhausted);

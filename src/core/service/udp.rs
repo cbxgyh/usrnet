@@ -54,7 +54,7 @@ pub fn recv_packet(
     let udp_packet = UdpPacket::try_new(ipv4_packet.payload())?;
     udp_packet.check_encoding(ipv4_repr)?;
 
-    let udp_repr = UdpRepr::deserialize(&udp_packet)?;
+    let udp_repr = UdpRepr::deserialize(&udp_packet);
 
     let packet = Packet::Udp(*ipv4_repr, udp_repr, udp_packet.payload());
     let mut unreachable = true;

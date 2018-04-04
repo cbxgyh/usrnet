@@ -162,14 +162,14 @@ impl Display for AddressCidr {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
-/// Safe representation for one of IPv4 protocols.
+/// A set of supported protocols over IPv4.
 pub enum Protocol {
     ICMP = protocols::ICMP,
     UDP = protocols::UDP,
     #[doc(hidden)] __Nonexhaustive,
 }
 
-/// Safe representation of an IPv4 header.
+/// An IPv4 header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Repr {
     pub src_addr: Address,
@@ -179,13 +179,13 @@ pub struct Repr {
 }
 
 impl Repr {
-    /// Returns the IPv4 packet size needed to serialize this IPv4 header and
-    /// payload.
+    /// Returns the buffer size needed to serialize the IPv4 header and
+    /// associated payload.
     pub fn buffer_len(&self) -> usize {
         Packet::<&[u8]>::MIN_HEADER_LEN + (self.payload_len as usize)
     }
 
-    /// Tries to deserialize a packet into an IPv4 representation.
+    /// Tries to deserialize a packet into an IPv4 header.
     pub fn deserialize<T>(packet: &Packet<T>) -> Result<Repr>
     where
         T: AsRef<[u8]>,
@@ -202,7 +202,7 @@ impl Repr {
         })
     }
 
-    /// Serializes the IPv4 representation into a packet.
+    /// Serializes the IPv4 header into a packet and performs a checksum update.
     pub fn serialize<T>(&self, packet: &mut Packet<T>)
     where
         T: AsRef<[u8]> + AsMut<[u8]>,
@@ -287,7 +287,10 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> AsMut<[u8]> for Packet<T> {
 impl<T: AsRef<[u8]>> Packet<T> {
     pub const MIN_HEADER_LEN: usize = 20;
 
-    /// Tries to create an IPv4 packet view over a byte buffer.
+    /// Tries to create an IPv4 packet from a byte buffer.
+    ///
+    /// NOTE: Use check_encoding() before operating on the packet if the provided
+    /// buffer originates from a untrusted source such as a link.
     pub fn try_new(buffer: T) -> Result<Packet<T>> {
         if buffer.as_ref().len() < Self::MIN_HEADER_LEN {
             Err(Error::Exhausted)

@@ -11,7 +11,7 @@ use {
 use core::check::internet_checksum;
 use core::repr::Ipv4Repr;
 
-/// Safe representation of a UDP header.
+/// A UDP header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Repr {
     pub src_port: u16,
@@ -20,25 +20,25 @@ pub struct Repr {
 }
 
 impl Repr {
-    /// Returns the UDP packet size needed to serialize this UDP header and
-    /// payload.
+    /// Returns the buffer size needed to serialize the UDP header and
+    /// associated payload.
     pub fn buffer_len(&self) -> usize {
         self.length as usize
     }
 
-    /// Tries to deserialize a packet into a UDP header.
-    pub fn deserialize<T>(packet: &Packet<T>) -> Result<Repr>
+    /// Deserializes a packet into a UDP header.
+    pub fn deserialize<T>(packet: &Packet<T>) -> Repr
     where
         T: AsRef<[u8]>,
     {
-        Ok(Repr {
+        Repr {
             src_port: packet.src_port(),
             dst_port: packet.dst_port(),
             length: packet.length(),
-        })
+        }
     }
 
-    /// Serializes the UDP header into a packet.
+    /// Serializes the UDP header into a packet and performs a checksum update.
     pub fn serialize<T>(&self, packet: &mut Packet<T>, ip_repr: &Ipv4Repr)
     where
         T: AsRef<[u8]> + AsMut<[u8]>,
@@ -89,11 +89,14 @@ impl<T: AsRef<[u8]>> Packet<T> {
 
     pub const MAX_PACKET_LEN: usize = 65535;
 
-    /// Tries to create an ICMP packet view over a byte buffer.
+    /// Tries to create a UDP packet from a byte buffer.
+    ///
+    /// NOTE: Use check_encoding() before operating on the packet if the provided
+    /// buffer originates from a untrusted source such as a link.
     pub fn try_new(buffer: T) -> Result<Packet<T>> {
         let buffer_len = buffer.as_ref().len();
 
-        if buffer_len < Self::buffer_len(0) || buffer_len > u16::max_value() as usize {
+        if buffer_len < Self::buffer_len(0) || buffer_len > Self::MAX_PACKET_LEN {
             Err(Error::Exhausted)
         } else {
             Ok(Packet { buffer })

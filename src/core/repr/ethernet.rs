@@ -145,7 +145,7 @@ impl<T: AsRef<[u8]>> Frame<T> {
 
     pub const MAX_FRAME_LEN: usize = 1518;
 
-    /// Tries to create an Ethernet frame view over a byte buffer.
+    /// Tries to create an Ethernet frame from a byte buffer.
     pub fn try_new(buffer: T) -> Result<Frame<T>> {
         if buffer.as_ref().len() < Self::HEADER_LEN || buffer.as_ref().len() > Self::MAX_FRAME_LEN {
             Err(Error::Exhausted)

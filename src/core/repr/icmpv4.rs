@@ -10,7 +10,19 @@ use {
 };
 use core::check::internet_checksum;
 
-/// Safe representation of an ICMP header.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DestinationUnreachable {
+    PortUnreachable,
+    #[doc(hidden)] ___Exhaustive,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TimeExceeded {
+    TTLExpired,
+    #[doc(hidden)] ___Exhaustive,
+}
+
+/// An ICMP header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Repr {
     EchoReply {
@@ -32,21 +44,9 @@ pub enum Repr {
     #[doc(hidden)] ___Exhaustive,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DestinationUnreachable {
-    PortUnreachable,
-    #[doc(hidden)] ___Exhaustive,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TimeExceeded {
-    TTLExpired,
-    #[doc(hidden)] ___Exhaustive,
-}
-
 impl Repr {
-    /// Returns the ICMP packet size needed to serialize this ICMP
-    /// representation.
+    /// Returns the buffer size needed to serialize the ICMP header and
+    /// associated payload.
     pub fn buffer_len(&self) -> usize {
         match *self {
             Repr::DestinationUnreachable {
@@ -59,7 +59,7 @@ impl Repr {
         }
     }
 
-    /// Tries to deserialize a packet into an ICMP representation.
+    /// Tries to deserialize a packet into an ICMP header.
     pub fn deserialize<T>(packet: &Packet<T>) -> Result<Repr>
     where
         T: AsRef<[u8]>,
@@ -111,7 +111,7 @@ impl Repr {
         }
     }
 
-    /// Serializes the ICMP representation into a packet.
+    /// Serializes the ICMP header into a packet and performs a checksum update.
     pub fn serialize<T>(&self, packet: &mut Packet<T>) -> Result<()>
     where
         T: AsRef<[u8]> + AsMut<[u8]>,
@@ -213,7 +213,10 @@ impl<T: AsRef<[u8]>> Packet<T> {
 
     pub const MAX_PACKET_LEN: usize = 65535;
 
-    /// Tries to create an ICMP packet view over a byte buffer.
+    /// Tries to create an ICMP packet from a byte buffer.
+    ///
+    /// NOTE: Use check_encoding() before operating on the packet if the provided
+    /// buffer originates from a untrusted source such as a link.
     pub fn try_new(buffer: T) -> Result<Packet<T>> {
         if buffer.as_ref().len() < Self::HEADER_LEN || buffer.as_ref().len() > Self::MAX_PACKET_LEN
         {
