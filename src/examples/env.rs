@@ -3,8 +3,11 @@ use std::vec::Vec;
 use core::arp_cache::ArpCache;
 use core::repr::{
     EthernetAddress,
+    EthernetFrame,
     Ipv4Address,
     Ipv4AddressCidr,
+    Ipv4Packet,
+    UdpPacket,
 };
 use core::service::{
     socket,
@@ -117,11 +120,18 @@ pub fn socket_set<'a, 'b: 'a>() -> SocketSet<'a, 'b> {
 
 /// Creates a raw socket.
 pub fn raw_socket<'a>(interface: &mut Interface, raw_type: RawType) -> RawSocket<'a> {
-    let buffer = || {
-        ring(RAW_SOCKET_BUFFER_LEN, || {
-            Slice::from(vec![0; interface.dev.max_transmission_unit()])
-        })
+    let header_len = match raw_type {
+        RawType::Ethernet => EthernetFrame::<&[u8]>::HEADER_LEN,
+        RawType::Ipv4 => EthernetFrame::<&[u8]>::HEADER_LEN + Ipv4Packet::<&[u8]>::MIN_HEADER_LEN,
     };
+
+    let payload_len = interface
+        .dev
+        .max_transmission_unit()
+        .checked_sub(header_len)
+        .unwrap();
+
+    let buffer = || ring(RAW_SOCKET_BUFFER_LEN, || Slice::from(vec![0; payload_len]));
 
     RawSocket::new(raw_type, buffer(), buffer())
 }
@@ -133,12 +143,15 @@ pub fn udp_socket<'a>(interface: &mut Interface, binding: AddrLease<'a>) -> UdpS
         port: 0,
     };
 
+    let udp_payload_len = interface
+        .dev
+        .max_transmission_unit()
+        .checked_sub(UdpPacket::<&[u8]>::HEADER_LEN)
+        .unwrap();
+
     let buffer = || {
         ring(UDP_SOCKET_BUFFER_LEN, || {
-            (
-                Slice::from(vec![0; interface.dev.max_transmission_unit()]),
-                addr.clone(),
-            )
+            (Slice::from(vec![0; udp_payload_len]), addr.clone())
         })
     };
 
