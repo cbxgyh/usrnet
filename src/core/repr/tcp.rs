@@ -1,7 +1,6 @@
 use byteorder::{
+    ByteOrder,
     NetworkEndian,
-    ReadBytesExt,
-    WriteBytesExt,
 };
 
 use {
@@ -168,7 +167,7 @@ impl<T: AsRef<[u8]>> Packet<T> {
         if self.gen_packet_checksum(ipv4_repr) != 0 {
             Err(Error::Checksum)
         } else if ((self.data_offset() * 4) as usize) < Self::MIN_HEADER_LEN
-            || (self.data_offset() as usize) * 4 >= self.buffer.as_ref().len()
+            || (self.data_offset() as usize) * 4 >= self.as_ref().len()
         {
             Err(Error::Malformed)
         } else {
@@ -178,142 +177,126 @@ impl<T: AsRef<[u8]>> Packet<T> {
 
     /// Calculates the packet checksum.
     pub fn gen_packet_checksum(&self, ipv4_repr: &Ipv4Repr) -> u16 {
-        ipv4_repr.gen_checksum_with_pseudo_header(self.buffer.as_ref())
+        ipv4_repr.gen_checksum_with_pseudo_header(self.as_ref())
     }
 
     pub fn src_port(&self) -> u16 {
-        (&self.buffer.as_ref()[fields::SRC_PORT])
-            .read_u16::<NetworkEndian>()
-            .unwrap()
+        NetworkEndian::read_u16(&self.as_ref()[fields::SRC_PORT])
     }
 
     pub fn dst_port(&self) -> u16 {
-        (&self.buffer.as_ref()[fields::DST_PORT])
-            .read_u16::<NetworkEndian>()
-            .unwrap()
+        NetworkEndian::read_u16(&self.as_ref()[fields::DST_PORT])
     }
 
     pub fn seq_num(&self) -> u32 {
-        (&self.buffer.as_ref()[fields::SEQ_NUM])
-            .read_u32::<NetworkEndian>()
-            .unwrap()
+        NetworkEndian::read_u32(&self.as_ref()[fields::SEQ_NUM])
     }
 
     pub fn ack_num(&self) -> u32 {
-        (&self.buffer.as_ref()[fields::ACK_NUM])
-            .read_u32::<NetworkEndian>()
-            .unwrap()
+        NetworkEndian::read_u32(&self.as_ref()[fields::ACK_NUM])
     }
 
     pub fn data_offset(&self) -> u8 {
-        &self.buffer.as_ref()[fields::DATA_OFFSET_AND_FLAGS][0] >> 4
+        &self.as_ref()[fields::DATA_OFFSET_AND_FLAGS][0] >> 4
     }
 
     pub fn ns(&self) -> bool {
-        (&self.buffer.as_ref()[fields::DATA_OFFSET_AND_FLAGS][0] & 1) != 0
+        self.flag(8)
     }
 
     pub fn cwr(&self) -> bool {
-        (&self.buffer.as_ref()[fields::DATA_OFFSET_AND_FLAGS][1] & 128) != 0
+        self.flag(7)
     }
 
     pub fn ece(&self) -> bool {
-        (&self.buffer.as_ref()[fields::DATA_OFFSET_AND_FLAGS][1] & 64) != 0
+        self.flag(6)
     }
 
     pub fn urg(&self) -> bool {
-        (&self.buffer.as_ref()[fields::DATA_OFFSET_AND_FLAGS][1] & 32) != 0
+        self.flag(5)
     }
 
     pub fn ack(&self) -> bool {
-        (&self.buffer.as_ref()[fields::DATA_OFFSET_AND_FLAGS][1] & 16) != 0
+        self.flag(4)
     }
 
     pub fn psh(&self) -> bool {
-        (&self.buffer.as_ref()[fields::DATA_OFFSET_AND_FLAGS][1] & 8) != 0
+        self.flag(3)
     }
 
     pub fn rst(&self) -> bool {
-        (&self.buffer.as_ref()[fields::DATA_OFFSET_AND_FLAGS][1] & 4) != 0
+        self.flag(2)
     }
 
     pub fn syn(&self) -> bool {
-        (&self.buffer.as_ref()[fields::DATA_OFFSET_AND_FLAGS][1] & 2) != 0
+        self.flag(1)
     }
 
     pub fn fin(&self) -> bool {
-        (&self.buffer.as_ref()[fields::DATA_OFFSET_AND_FLAGS][1] & 1) != 0
+        self.flag(0)
+    }
+
+    fn flag(&self, index: usize) -> bool {
+        let field = NetworkEndian::read_u16(&self.as_ref()[fields::DATA_OFFSET_AND_FLAGS]);
+        (field & (1 << index)) != 0
     }
 
     pub fn window_size(&self) -> u16 {
-        (&self.buffer.as_ref()[fields::WINDOW_SIZE])
-            .read_u16::<NetworkEndian>()
-            .unwrap()
+        NetworkEndian::read_u16(&self.as_ref()[fields::WINDOW_SIZE])
     }
 
     pub fn checksum(&self) -> u16 {
-        (&self.buffer.as_ref()[fields::CHECKSUM])
-            .read_u16::<NetworkEndian>()
-            .unwrap()
+        NetworkEndian::read_u16(&self.as_ref()[fields::CHECKSUM])
     }
 
     pub fn urgent_pointer(&self) -> u16 {
-        (&self.buffer.as_ref()[fields::URGENT_POINTER])
-            .read_u16::<NetworkEndian>()
-            .unwrap()
+        NetworkEndian::read_u16(&self.as_ref()[fields::URGENT_POINTER])
     }
 
     pub fn payload(&self) -> &[u8] {
         let data_offset = (self.data_offset() * 4) as usize;
-        &self.buffer.as_ref()[data_offset ..]
+        &self.as_ref()[data_offset ..]
     }
 }
 
 impl<T: AsRef<[u8]> + AsMut<[u8]>> Packet<T> {
     pub fn set_src_port(&mut self, port: u16) {
-        (&mut self.buffer.as_mut()[fields::SRC_PORT])
-            .write_u16::<NetworkEndian>(port)
-            .unwrap()
+        NetworkEndian::write_u16(&mut self.as_mut()[fields::SRC_PORT], port);
     }
 
     pub fn set_dst_port(&mut self, port: u16) {
-        (&mut self.buffer.as_mut()[fields::DST_PORT])
-            .write_u16::<NetworkEndian>(port)
-            .unwrap()
+        NetworkEndian::write_u16(&mut self.as_mut()[fields::DST_PORT], port);
     }
 
     pub fn set_seq_num(&mut self, seq_num: u32) {
-        (&mut self.buffer.as_mut()[fields::SEQ_NUM])
-            .write_u32::<NetworkEndian>(seq_num)
-            .unwrap()
+        NetworkEndian::write_u32(&mut self.as_mut()[fields::SEQ_NUM], seq_num);
     }
 
     pub fn set_ack_num(&mut self, ack_num: u32) {
-        (&mut self.buffer.as_mut()[fields::ACK_NUM])
-            .write_u32::<NetworkEndian>(ack_num)
-            .unwrap()
+        NetworkEndian::write_u32(&mut self.as_mut()[fields::ACK_NUM], ack_num);
     }
 
     pub fn set_data_offset(&mut self, data_offset: u8) {
-        let byte = &mut self.buffer.as_mut()[fields::DATA_OFFSET_AND_FLAGS][0];
-        *byte &= 0b00001111;
-        *byte |= data_offset << 4;
+        let mut field = self.as_ref()[fields::DATA_OFFSET_AND_FLAGS][0];
+        field &= 0x0F;
+        field |= data_offset << 4;
+        self.as_mut()[fields::DATA_OFFSET_AND_FLAGS][0] = field;
     }
 
     pub fn set_ns(&mut self, ns: bool) {
-        self.set_flag(0, ns)
+        self.set_flag(8, ns)
     }
 
     pub fn set_cwr(&mut self, cwr: bool) {
-        self.set_flag(1, cwr)
+        self.set_flag(7, cwr)
     }
 
     pub fn set_ece(&mut self, ece: bool) {
-        self.set_flag(2, ece)
+        self.set_flag(6, ece)
     }
 
     pub fn set_urg(&mut self, urg: bool) {
-        self.set_flag(3, urg)
+        self.set_flag(5, urg)
     }
 
     pub fn set_ack(&mut self, ack: bool) {
@@ -321,58 +304,46 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Packet<T> {
     }
 
     pub fn set_psh(&mut self, psh: bool) {
-        self.set_flag(5, psh)
+        self.set_flag(3, psh)
     }
 
     pub fn set_rst(&mut self, rst: bool) {
-        self.set_flag(6, rst)
+        self.set_flag(2, rst)
     }
 
     pub fn set_syn(&mut self, syn: bool) {
-        self.set_flag(7, syn)
+        self.set_flag(1, syn)
     }
 
     pub fn set_fin(&mut self, fin: bool) {
-        self.set_flag(8, fin)
+        self.set_flag(0, fin)
     }
 
-    fn set_flag(&mut self, flag_idx: usize, flag_val: bool) {
-        let (byte_idx, bit_idx) = if flag_idx == 0 {
-            (0, 0)
+    fn set_flag(&mut self, index: usize, enabled: bool) {
+        let mut field = NetworkEndian::read_u16(&self.as_ref()[fields::DATA_OFFSET_AND_FLAGS]);
+        field = if enabled {
+            field | (1 << index)
         } else {
-            (1, 8 - flag_idx)
+            field & !(1 << index)
         };
-
-        // (1) retrieve a reference to the byte containing the flag, (2) clear the
-        // appropriate bit, and (3) set the flag bit accordingly.
-        let byte = &mut self.buffer.as_mut()[fields::DATA_OFFSET_AND_FLAGS][byte_idx];
-        *byte &= !(1 << bit_idx);
-        if flag_val {
-            *byte |= 1 << bit_idx;
-        }
+        NetworkEndian::write_u16(&mut self.as_mut()[fields::DATA_OFFSET_AND_FLAGS], field);
     }
 
     pub fn set_window_size(&mut self, window_size: u16) {
-        (&mut self.buffer.as_mut()[fields::WINDOW_SIZE])
-            .write_u16::<NetworkEndian>(window_size)
-            .unwrap()
+        NetworkEndian::write_u16(&mut self.as_mut()[fields::WINDOW_SIZE], window_size);
     }
 
     pub fn set_checksum(&mut self, checksum: u16) {
-        (&mut self.buffer.as_mut()[fields::CHECKSUM])
-            .write_u16::<NetworkEndian>(checksum)
-            .unwrap()
+        NetworkEndian::write_u16(&mut self.as_mut()[fields::CHECKSUM], checksum);
     }
 
     pub fn set_urgent_pointer(&mut self, urgent_pointer: u16) {
-        (&mut self.buffer.as_mut()[fields::URGENT_POINTER])
-            .write_u16::<NetworkEndian>(urgent_pointer)
-            .unwrap()
+        NetworkEndian::write_u16(&mut self.as_mut()[fields::URGENT_POINTER], urgent_pointer);
     }
 
     pub fn payload_mut(&mut self) -> &mut [u8] {
         let data_offset = (self.data_offset() * 4) as usize;
-        &mut self.buffer.as_mut()[data_offset ..]
+        &mut self.as_mut()[data_offset ..]
     }
 
     pub fn fill_checksum(&mut self, ipv4_repr: &Ipv4Repr) {
