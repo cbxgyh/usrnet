@@ -30,7 +30,7 @@ where
 {
     ipv4::send_packet_with_repr(interface, ipv4_repr, |ipv4_payload| {
         let mut tcp_packet = TcpPacket::try_new(ipv4_payload).unwrap();
-        tcp_repr.serialize(&mut tcp_packet);
+        tcp_repr.serialize(&mut tcp_packet).unwrap();
         f(tcp_packet.payload_mut());
         tcp_packet.fill_checksum(ipv4_repr);
     })

@@ -27,6 +27,7 @@ fn main() {
         flags: [false; 9],
         window_size: 64,
         urgent_pointer: 0,
+        max_segment_size: Some(536),
     };
 
     tcp_repr.flags[TcpRepr::FLAG_SYN] = true;

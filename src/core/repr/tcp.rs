@@ -22,6 +22,7 @@ pub struct Repr {
     pub flags: [bool; 9],
     pub window_size: u16,
     pub urgent_pointer: u16,
+    pub max_segment_size: Option<u16>,
 }
 
 impl Repr {
@@ -43,9 +44,14 @@ impl Repr {
 
     pub const FLAG_FIN: usize = 8;
 
-    /// Returns the length of the TCP header when serialized to a buffer.
+    /// Returns the length of the TCP header (including options!) when serialized
+    /// to a buffer.
     pub fn header_len(&self) -> usize {
-        20
+        20 + if self.max_segment_size.is_some() {
+            4
+        } else {
+            0
+        }
     }
 
     /// Deserializes a packet into a TCP header.
@@ -53,6 +59,8 @@ impl Repr {
     where
         T: AsRef<[u8]>,
     {
+        let options_iter = TcpOptionIter::new(packet.options());
+
         Repr {
             src_port: packet.src_port(),
             dst_port: packet.dst_port(),
@@ -71,21 +79,38 @@ impl Repr {
             ],
             window_size: packet.window_size(),
             urgent_pointer: packet.urgent_pointer(),
+            max_segment_size: options_iter
+                .filter_map(|option| match option {
+                    TcpOption::MaxSegmentSize(mss) => Some(mss),
+                    _ => None,
+                })
+                .next(),
         }
     }
 
     /// Serializes the TCP header into a packet.
-    pub fn serialize<T>(&self, packet: &mut Packet<T>)
+    pub fn serialize<T>(&self, packet: &mut Packet<T>) -> Result<()>
     where
         T: AsRef<[u8]> + AsMut<[u8]>,
     {
+        if self.header_len() > packet.as_ref().len() {
+            return Err(Error::Exhausted);
+        }
+
         packet.set_src_port(self.src_port);
         packet.set_dst_port(self.dst_port);
         packet.set_seq_num(self.seq_num);
         packet.set_ack_num(self.ack_num);
-        // Options are not supported! When adding options support, we should make
-        // sure the packet buffer has sufficient capacity.
-        packet.set_data_offset(5);
+
+        // When using options, make sure the header length is a multiple of 32 bits
+        // using the NOP option.
+        let data_offset = 5 + if self.max_segment_size.is_some() {
+            1
+        } else {
+            0
+        };
+        packet.set_data_offset(data_offset);
+
         packet.set_ns(self.flags[Self::FLAG_NS]);
         packet.set_cwr(self.flags[Self::FLAG_CWR]);
         packet.set_ece(self.flags[Self::FLAG_ECE]);
@@ -98,6 +123,20 @@ impl Repr {
         packet.set_window_size(self.window_size);
         packet.set_checksum(0);
         packet.set_urgent_pointer(self.urgent_pointer);
+
+        // Ok for now... in the future we may support arbitrary options on the
+        // Repr and should support generic serialization of options.
+        match self.max_segment_size {
+            Some(mss) => {
+                let options = packet.options_mut();
+                options[0] = 2;
+                options[1] = 4;
+                NetworkEndian::write_u16(&mut options[2 .. 4], mss);
+            }
+            _ => {}
+        };
+
+        Ok(())
     }
 }
 
@@ -120,6 +159,74 @@ mod fields {
     pub const CHECKSUM: Range<usize> = 16 .. 18;
 
     pub const URGENT_POINTER: Range<usize> = 18 .. 20;
+}
+
+/// A TCP option.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TcpOption<'a> {
+    EOL,
+    NoOp,
+    MaxSegmentSize(u16),
+    Unknown { kind: u8, payload: &'a [u8] },
+}
+
+/// An iterator that produces TcpOptions from a buffer.
+pub struct TcpOptionIter<'a> {
+    options: &'a [u8],
+    position: usize,
+}
+
+impl<'a> Iterator for TcpOptionIter<'a> {
+    type Item = TcpOption<'a>;
+
+    fn next(&mut self) -> Option<TcpOption<'a>> {
+        if self.position == self.options.len() {
+            return None;
+        }
+
+        let kind = self.options[self.position];
+        let (option, len) = match kind {
+            0 => (TcpOption::EOL, 1),
+            1 => (TcpOption::NoOp, 1),
+            _ => {
+                if self.position + 2 > self.options.len() {
+                    // No space for length field!
+                    return None;
+                }
+
+                let len = self.options[self.position + 1] as usize;
+
+                if self.position + len > self.options.len() {
+                    // Length exceeds buffer!
+                    return None;
+                }
+
+                let payload = &self.options[self.position + 2 .. self.position + len];
+
+                match (kind, len) {
+                    (2, 4) => {
+                        let mss = NetworkEndian::read_u16(payload);
+                        (TcpOption::MaxSegmentSize(mss), 4)
+                    }
+                    _ => (TcpOption::Unknown { kind, payload }, len),
+                }
+            }
+        };
+
+        self.position += len;
+
+        Some(option)
+    }
+}
+
+impl<'a> TcpOptionIter<'a> {
+    /// Creates a new TCP options iterator from a buffer.
+    pub fn new(options: &'a [u8]) -> TcpOptionIter<'a> {
+        TcpOptionIter {
+            options,
+            position: 0,
+        }
+    }
 }
 
 /// View of a byte buffer as a TCP packet.
@@ -167,7 +274,7 @@ impl<T: AsRef<[u8]>> Packet<T> {
         if self.gen_packet_checksum(ipv4_repr) != 0 {
             Err(Error::Checksum)
         } else if ((self.data_offset() * 4) as usize) < Self::MIN_HEADER_LEN
-            || (self.data_offset() as usize) * 4 >= self.as_ref().len()
+            || (self.data_offset() as usize) * 4 > self.as_ref().len()
         {
             Err(Error::Malformed)
         } else {
@@ -251,6 +358,11 @@ impl<T: AsRef<[u8]>> Packet<T> {
 
     pub fn urgent_pointer(&self) -> u16 {
         NetworkEndian::read_u16(&self.as_ref()[fields::URGENT_POINTER])
+    }
+
+    pub fn options(&self) -> &[u8] {
+        let data_offset = (self.data_offset() * 4) as usize;
+        &self.as_ref()[Self::MIN_HEADER_LEN .. data_offset]
     }
 
     pub fn payload(&self) -> &[u8] {
@@ -341,6 +453,11 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Packet<T> {
         NetworkEndian::write_u16(&mut self.as_mut()[fields::URGENT_POINTER], urgent_pointer);
     }
 
+    pub fn options_mut(&mut self) -> &mut [u8] {
+        let data_offset = (self.data_offset() * 4) as usize;
+        &mut self.as_mut()[Self::MIN_HEADER_LEN .. data_offset]
+    }
+
     pub fn payload_mut(&mut self) -> &mut [u8] {
         let data_offset = (self.data_offset() * 4) as usize;
         &mut self.as_mut()[data_offset ..]
@@ -402,10 +519,10 @@ mod tests {
 
     #[test]
     fn test_packet_getters() {
-        let buffer: [u8; 36] = [
-            0x45, 0x00, 0x00, 0x14, 0x00, 0x00, 0xB0, 0x12, 0x00, 0x00, 0x00, 0x34, 0x51, 0xFF,
-            0x43, 0x21, 0x4E, 0x2A, 0x12, 0x34, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        let buffer: [u8; 40] = [
+            0x45, 0x00, 0x00, 0x14, 0x00, 0x00, 0xB0, 0x12, 0x00, 0x00, 0x00, 0x34, 0x61, 0xFF,
+            0x43, 0x21, 0x3B, 0x26, 0x12, 0x34, 0x02, 0x04, 0x01, 0x00, 0x09, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
 
         let packet = Packet::try_new(&buffer[..]).unwrap();
@@ -415,7 +532,7 @@ mod tests {
         assert_eq!(20, packet.dst_port());
         assert_eq!(45074, packet.seq_num());
         assert_eq!(52, packet.ack_num());
-        assert_eq!(5, packet.data_offset());
+        assert_eq!(6, packet.data_offset());
         assert_eq!(17185, packet.window_size());
         assert_eq!(true, packet.ns());
         assert_eq!(true, packet.cwr());
@@ -426,41 +543,78 @@ mod tests {
         assert_eq!(true, packet.rst());
         assert_eq!(true, packet.syn());
         assert_eq!(true, packet.fin());
-        assert_eq!(20010, packet.checksum());
+        assert_eq!(15142, packet.checksum());
         assert_eq!(4660, packet.urgent_pointer());
+
+        let repr = Repr::deserialize(&packet);
+
+        assert_eq!(
+            repr,
+            Repr {
+                src_port: 17664,
+                dst_port: 20,
+                seq_num: 45074,
+                ack_num: 52,
+                flags: [true; 9],
+                window_size: 17185,
+                urgent_pointer: 4660,
+                max_segment_size: Some(256),
+            }
+        );
     }
 
     #[test]
     fn test_packet_setters() {
-        let mut buffer: [u8; 36] = [0; 36];
+        let repr = Repr {
+            src_port: 17664,
+            dst_port: 20,
+            seq_num: 45074,
+            ack_num: 52,
+            flags: [true; 9],
+            window_size: 17185,
+            urgent_pointer: 4660,
+            max_segment_size: Some(256),
+        };
+
+        assert_eq!(24, repr.header_len());
+
+        let mut buffer: [u8; 40] = [0; 40];
 
         let mut packet = Packet::try_new(&mut buffer[..]).unwrap();
-        packet.set_src_port(17664);
-        packet.set_dst_port(20);
-        packet.set_seq_num(45074);
-        packet.set_ack_num(52);
-        packet.set_data_offset(5);
-        packet.set_ns(true);
-        packet.set_cwr(true);
-        packet.set_ece(true);
-        packet.set_urg(true);
-        packet.set_ack(true);
-        packet.set_psh(true);
-        packet.set_rst(true);
-        packet.set_syn(true);
-        packet.set_fin(true);
-        packet.set_window_size(17185);
-        packet.set_checksum(20010);
-        packet.set_urgent_pointer(4660);
+        repr.serialize(&mut packet).unwrap();
         packet.payload_mut()[0] = 9;
+        packet.fill_checksum(&ipv4_repr(16));
 
         assert_eq!(
             packet.as_ref(),
             &[
-                0x45, 0x00, 0x00, 0x14, 0x00, 0x00, 0xB0, 0x12, 0x00, 0x00, 0x00, 0x34, 0x51, 0xFF,
-                0x43, 0x21, 0x4E, 0x2A, 0x12, 0x34, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x45, 0x00, 0x00, 0x14, 0x00, 0x00, 0xB0, 0x12, 0x00, 0x00, 0x00, 0x34, 0x61, 0xFF,
+                0x43, 0x21, 0x3B, 0x26, 0x12, 0x34, 0x02, 0x04, 0x01, 0x00, 0x09, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             ][..]
+        );
+    }
+
+    #[test]
+    fn test_options_iterator() {
+        let mut buffer: [u8; 20] = [0, 1, 3, 4, 4, 5, 2, 4, 1, 1, 0, 1, 1, 1, 5, 99, 2, 4, 1, 1];
+        let options: Vec<_> = TcpOptionIter::new(&mut buffer).collect();
+
+        assert_eq!(
+            options,
+            vec![
+                TcpOption::EOL,
+                TcpOption::NoOp,
+                TcpOption::Unknown {
+                    kind: 3,
+                    payload: &[4, 5],
+                },
+                TcpOption::MaxSegmentSize(257),
+                TcpOption::EOL,
+                TcpOption::NoOp,
+                TcpOption::NoOp,
+                TcpOption::NoOp,
+            ]
         );
     }
 }
