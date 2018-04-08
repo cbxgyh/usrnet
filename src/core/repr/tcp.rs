@@ -19,11 +19,9 @@ pub struct Repr {
     pub dst_port: u16,
     pub seq_num: u32,
     pub ack_num: u32,
-    pub data_offset: u8,
     /// Access using the provided FLAG constants.
     pub flags: [bool; 9],
     pub window_size: u16,
-    pub checksum: u16,
     pub urgent_pointer: u16,
 }
 
@@ -61,7 +59,6 @@ impl Repr {
             dst_port: packet.dst_port(),
             seq_num: packet.seq_num(),
             ack_num: packet.ack_num(),
-            data_offset: packet.data_offset(),
             flags: [
                 packet.ns(),
                 packet.cwr(),
@@ -74,7 +71,6 @@ impl Repr {
                 packet.fin(),
             ],
             window_size: packet.window_size(),
-            checksum: packet.checksum(),
             urgent_pointer: packet.urgent_pointer(),
         }
     }
@@ -88,7 +84,18 @@ impl Repr {
         packet.set_dst_port(self.dst_port);
         packet.set_seq_num(self.seq_num);
         packet.set_ack_num(self.ack_num);
-        packet.set_data_offset(self.data_offset);
+        // Options are not supported! When adding options support, we should make
+        // sure the packet buffer has sufficient capacity.
+        packet.set_data_offset(5);
+        packet.set_ns(self.flags[Self::FLAG_NS]);
+        packet.set_cwr(self.flags[Self::FLAG_CWR]);
+        packet.set_ece(self.flags[Self::FLAG_ECE]);
+        packet.set_urg(self.flags[Self::FLAG_URG]);
+        packet.set_ack(self.flags[Self::FLAG_ACK]);
+        packet.set_psh(self.flags[Self::FLAG_PSH]);
+        packet.set_rst(self.flags[Self::FLAG_RST]);
+        packet.set_syn(self.flags[Self::FLAG_SYN]);
+        packet.set_fin(self.flags[Self::FLAG_FIN]);
         packet.set_window_size(self.window_size);
         packet.set_checksum(0);
         packet.set_urgent_pointer(self.urgent_pointer);

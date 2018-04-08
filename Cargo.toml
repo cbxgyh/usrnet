@@ -25,6 +25,9 @@ name = "dev_up"
 name = "ping"
 
 [[example]]
+name = "tcp_echo_client"
+
+[[example]]
 name = "traceroute"
 
 [[example]]

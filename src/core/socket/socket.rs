@@ -1,6 +1,7 @@
 use Result;
 use core::repr::{
     Ipv4Repr,
+    TcpRepr,
     UdpRepr,
 };
 
@@ -8,6 +9,7 @@ pub enum Packet<'a> {
     Raw(&'a [u8]),
     Ipv4(&'a [u8]),
     Udp(Ipv4Repr, UdpRepr, &'a [u8]),
+    Tcp(Ipv4Repr, TcpRepr, &'a [u8]),
     #[doc(hidden)] ___Exhaustive,
 }
 

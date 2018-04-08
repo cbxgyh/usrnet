@@ -37,6 +37,10 @@ pub use self::ipv4::{
     flags as ipv4_flags,
     protocols as ipv4_protocols,
 };
+pub use self::tcp::{
+    Packet as TcpPacket,
+    Repr as TcpRepr,
+};
 pub use self::udp::{
     Packet as UdpPacket,
     Repr as UdpRepr,

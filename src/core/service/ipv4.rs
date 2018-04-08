@@ -13,6 +13,7 @@ use core::repr::{
 use core::service::{
     arp,
     ethernet,
+    tcp,
     udp,
     Interface,
     icmpv4,
@@ -107,6 +108,7 @@ pub fn recv_packet(
     let ipv4_repr = Ipv4Repr::deserialize(&ipv4_packet)?;
 
     match ipv4_packet.protocol() {
+        ipv4_protocols::TCP => tcp::recv_packet(interface, &ipv4_repr, &ipv4_packet, socket_set),
         ipv4_protocols::UDP => udp::recv_packet(interface, &ipv4_repr, &ipv4_packet, socket_set),
         ipv4_protocols::ICMP => icmpv4::recv_packet(interface, &ipv4_repr, ipv4_packet.payload()),
         i => {

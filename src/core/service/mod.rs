@@ -8,6 +8,7 @@ pub mod ethernet;
 pub mod icmpv4;
 pub mod ipv4;
 pub mod socket;
+pub mod tcp;
 pub mod udp;
 
 use core::arp_cache::ArpCache;
