@@ -22,41 +22,27 @@ pub enum TimeExceeded {
     #[doc(hidden)] ___Exhaustive,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Message {
+    EchoReply { id: u16, seq: u16 },
+    EchoRequest { id: u16, seq: u16 },
+    DestinationUnreachable(DestinationUnreachable),
+    TimeExceeded(TimeExceeded),
+    #[doc(hidden)] ___Exhaustive,
+}
+
 /// An ICMP header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Repr {
-    EchoReply {
-        id: u16,
-        seq: u16,
-    },
-    EchoRequest {
-        id: u16,
-        seq: u16,
-    },
-    DestinationUnreachable {
-        reason: DestinationUnreachable,
-        ipv4_header_len: usize,
-    },
-    TimeExceeded {
-        reason: TimeExceeded,
-        ipv4_header_len: usize,
-    },
-    #[doc(hidden)] ___Exhaustive,
+pub struct Repr {
+    pub message: Message,
+    pub payload_len: usize,
 }
 
 impl Repr {
     /// Returns the buffer size needed to serialize the ICMP header and
     /// associated payload.
     pub fn buffer_len(&self) -> usize {
-        match *self {
-            Repr::DestinationUnreachable {
-                ipv4_header_len, ..
-            } => ipv4_header_len + 16,
-            Repr::TimeExceeded {
-                ipv4_header_len, ..
-            } => ipv4_header_len + 16,
-            _ => 8,
-        }
+        8 + self.payload_len
     }
 
     /// Tries to deserialize a packet into an ICMP header.
@@ -64,54 +50,41 @@ impl Repr {
     where
         T: AsRef<[u8]>,
     {
-        fn echo_id_seq<T>(packet: &Packet<T>) -> (u16, u16)
-        where
-            T: AsRef<[u8]>,
-        {
-            (
-                (&packet.header()[0 .. 2])
-                    .read_u16::<NetworkEndian>()
-                    .unwrap(),
-                (&packet.header()[2 .. 4])
-                    .read_u16::<NetworkEndian>()
-                    .unwrap(),
-            )
-        }
+        let (id, seq) = (
+            (&packet.header()[0 .. 2])
+                .read_u16::<NetworkEndian>()
+                .unwrap(),
+            (&packet.header()[2 .. 4])
+                .read_u16::<NetworkEndian>()
+                .unwrap(),
+        );
 
-        fn ipv4_header_len<T>(packet: &Packet<T>) -> Result<usize>
-        where
-            T: AsRef<[u8]>,
-        {
-            // IP header (20 bytes) + payload (8 bytes) minimum!
-            if packet.payload().len() < 28 {
-                Err(Error::Malformed)
-            } else {
-                Ok(packet.payload().len() - 8)
-            }
-        }
+        let payload_len = packet.payload().len();
 
         match (packet._type(), packet.code()) {
-            (0, 0) => {
-                let (id, seq) = echo_id_seq(packet);
-                Ok(Repr::EchoReply { id, seq })
-            }
-            (8, 0) => {
-                let (id, seq) = echo_id_seq(packet);
-                Ok(Repr::EchoRequest { id, seq })
-            }
-            (3, 3) => Ok(Repr::DestinationUnreachable {
-                reason: DestinationUnreachable::PortUnreachable,
-                ipv4_header_len: ipv4_header_len(packet)?,
+            (0, 0) => Ok(Repr {
+                message: Message::EchoReply { id, seq },
+                payload_len,
             }),
-            (11, 0) => Ok(Repr::TimeExceeded {
-                reason: TimeExceeded::TTLExpired,
-                ipv4_header_len: ipv4_header_len(packet)?,
+            (8, 0) => Ok(Repr {
+                message: Message::EchoRequest { id, seq },
+                payload_len,
+            }),
+            (3, 3) => Ok(Repr {
+                message: Message::DestinationUnreachable(DestinationUnreachable::PortUnreachable),
+                payload_len,
+            }),
+            (11, 0) => Ok(Repr {
+                message: Message::TimeExceeded(TimeExceeded::TTLExpired),
+                payload_len,
             }),
             _ => Err(Error::Malformed),
         }
     }
 
-    /// Serializes the ICMP header into a packet and performs a checksum update.
+    /// Serializes the ICMP header into a packet.
+    ///
+    /// NOTE: Use fill_checksum() on the packet before sending over the wire!
     pub fn serialize<T>(&self, packet: &mut Packet<T>) -> Result<()>
     where
         T: AsRef<[u8]> + AsMut<[u8]>,
@@ -131,54 +104,35 @@ impl Repr {
                 .unwrap();
         };
 
-        fn error<T>(
-            packet: &mut Packet<T>,
-            ipv4_header_len: usize,
-            type_of: u8,
-            code: u8,
-        ) -> Result<()>
+        fn error<T>(packet: &mut Packet<T>, type_of: u8, code: u8)
         where
             T: AsRef<[u8]> + AsMut<[u8]>,
         {
-            if packet.payload().len() != ipv4_header_len + 8 {
-                return Err(Error::Malformed);
-            }
             packet.set_type(type_of);
             packet.set_code(code);
             let zeros = [0; 4];
             packet.header_mut().copy_from_slice(&zeros[..]);
-            Ok(())
         };
 
-        match *self {
-            Repr::EchoReply { id, seq } => echo(packet, 0, id, seq),
-            Repr::EchoRequest { id, seq } => echo(packet, 8, id, seq),
-            Repr::DestinationUnreachable {
-                reason,
-                ipv4_header_len,
-            } => {
-                let code = match reason {
+        match self.message {
+            Message::EchoReply { id, seq } => echo(packet, 0, id, seq),
+            Message::EchoRequest { id, seq } => echo(packet, 8, id, seq),
+            Message::DestinationUnreachable(message) => {
+                let code = match message {
                     DestinationUnreachable::PortUnreachable => 3,
                     _ => unreachable!(),
                 };
-                error(packet, ipv4_header_len, 3, code)?;
+                error(packet, 3, code);
             }
-            Repr::TimeExceeded {
-                reason,
-                ipv4_header_len,
-            } => {
-                let code = match reason {
+            Message::TimeExceeded(message) => {
+                let code = match message {
                     TimeExceeded::TTLExpired => 0,
                     _ => unreachable!(),
                 };
-                error(packet, ipv4_header_len, 11, code)?;
+                error(packet, 11, code);
             }
             _ => unreachable!(),
         };
-
-        packet.set_checksum(0);
-        let checksum = packet.gen_packet_checksum();
-        packet.set_checksum(checksum);
 
         Ok(())
     }
@@ -290,6 +244,12 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Packet<T> {
 
     pub fn payload_mut(&mut self) -> &mut [u8] {
         &mut self.buffer.as_mut()[fields::PAYLOAD]
+    }
+
+    pub fn fill_checksum(&mut self) {
+        self.set_checksum(0);
+        let checksum = self.gen_packet_checksum();
+        self.set_checksum(checksum);
     }
 }
 

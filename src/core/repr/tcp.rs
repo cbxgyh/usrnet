@@ -79,8 +79,8 @@ impl Repr {
         }
     }
 
-    /// Serializes the TCP header into a packet and performs a checksum update.
-    pub fn serialize<T>(&self, packet: &mut Packet<T>, ipv4_repr: &Ipv4Repr)
+    /// Serializes the TCP header into a packet.
+    pub fn serialize<T>(&self, packet: &mut Packet<T>)
     where
         T: AsRef<[u8]> + AsMut<[u8]>,
     {
@@ -92,9 +92,6 @@ impl Repr {
         packet.set_window_size(self.window_size);
         packet.set_checksum(0);
         packet.set_urgent_pointer(self.urgent_pointer);
-
-        let checksum = packet.gen_packet_checksum(ipv4_repr);
-        packet.set_checksum(checksum);
     }
 }
 
@@ -369,6 +366,12 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Packet<T> {
     pub fn payload_mut(&mut self) -> &mut [u8] {
         let data_offset = (self.data_offset() * 4) as usize;
         &mut self.buffer.as_mut()[data_offset ..]
+    }
+
+    pub fn fill_checksum(&mut self, ipv4_repr: &Ipv4Repr) {
+        self.set_checksum(0);
+        let checksum = self.gen_packet_checksum(ipv4_repr);
+        self.set_checksum(checksum);
     }
 }
 

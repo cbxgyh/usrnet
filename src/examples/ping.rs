@@ -5,6 +5,7 @@ use std::time::{
 
 use Error;
 use core::repr::{
+    Icmpv4Message,
     Icmpv4Packet,
     Icmpv4Repr,
     Ipv4Address,
@@ -28,13 +29,16 @@ pub fn ping(
     payload: &[u8],
     timeout: Duration,
 ) -> Option<Duration> {
-    let icmp_repr = Icmpv4Repr::EchoRequest { id, seq };
+    let icmp_repr = Icmpv4Repr {
+        message: Icmpv4Message::EchoRequest { id, seq },
+        payload_len: payload.len(),
+    };
 
     let ipv4_repr = Ipv4Repr {
         src_addr: *interface.ipv4_addr,
         dst_addr: ping_addr,
         protocol: Ipv4Protocol::ICMP,
-        payload_len: (icmp_repr.buffer_len() + payload.len()) as u16,
+        payload_len: icmp_repr.buffer_len() as u16,
     };
 
     // Socket may have a full send buffer!
@@ -47,8 +51,9 @@ pub fn ping(
             ipv4_repr.serialize(&mut ipv4_packet);
 
             let mut icmp_packet = Icmpv4Packet::try_new(ipv4_packet.payload_mut()).unwrap();
-            icmp_packet.payload_mut().copy_from_slice(payload);
             icmp_repr.serialize(&mut icmp_packet).unwrap();
+            icmp_packet.payload_mut().copy_from_slice(payload);
+            icmp_packet.fill_checksum();
         }) {
         env::tick(interface, socket_set);
     }
@@ -66,7 +71,8 @@ pub fn ping(
             .recv()
             .and_then(|ip_buffer| {
                 let ipv4_packet = Ipv4Packet::try_new(ip_buffer)?;
-                if ipv4_packet.protocol() != ipv4_protocols::ICMP || ipv4_packet.src_addr() != ping_addr
+                if ipv4_packet.protocol() != ipv4_protocols::ICMP
+                    || ipv4_packet.src_addr() != ping_addr
                     || ipv4_packet.dst_addr() != *interface.ipv4_addr
                 {
                     return Err(Error::NoOp);
@@ -76,8 +82,8 @@ pub fn ping(
                 icmp_packet.check_encoding()?;
                 let icmp_repr = Icmpv4Repr::deserialize(&icmp_packet)?;
 
-                match icmp_repr {
-                    Icmpv4Repr::EchoReply {
+                match icmp_repr.message {
+                    Icmpv4Message::EchoReply {
                         id: id_reply,
                         seq: seq_reply,
                     } => {

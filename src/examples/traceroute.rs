@@ -8,6 +8,7 @@ use rand;
 use Error;
 use core::repr::{
     Icmpv4DestinationUnreachable,
+    Icmpv4Message,
     Icmpv4Packet,
     Icmpv4Repr,
     Icmpv4TimeExceeded,
@@ -165,15 +166,13 @@ fn recv(
                 let icmp_packet = Icmpv4Packet::try_new(ipv4_packet.payload())?;
                 icmp_packet.check_encoding()?;
                 let icmp_repr = Icmpv4Repr::deserialize(&icmp_packet)?;
-                let ipv4_packet = match icmp_repr {
-                    Icmpv4Repr::DestinationUnreachable {
-                        reason: Icmpv4DestinationUnreachable::PortUnreachable,
-                        ..
-                    } => Ipv4Packet::try_new(icmp_packet.payload())?,
-                    Icmpv4Repr::TimeExceeded {
-                        reason: Icmpv4TimeExceeded::TTLExpired,
-                        ..
-                    } => Ipv4Packet::try_new(icmp_packet.payload())?,
+                let ipv4_packet = match icmp_repr.message {
+                    Icmpv4Message::DestinationUnreachable(
+                        Icmpv4DestinationUnreachable::PortUnreachable,
+                    ) => Ipv4Packet::try_new(icmp_packet.payload())?,
+                    Icmpv4Message::TimeExceeded(Icmpv4TimeExceeded::TTLExpired) => {
+                        Ipv4Packet::try_new(icmp_packet.payload())?
+                    }
                     _ => return Err(Error::NoOp),
                 };
 

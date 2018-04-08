@@ -1,6 +1,7 @@
 use Result;
 use core::repr::{
     Icmpv4DestinationUnreachable,
+    Icmpv4Message,
     Icmpv4Repr,
     Ipv4Packet,
     Ipv4Protocol,
@@ -68,9 +69,11 @@ pub fn recv_packet(
     // Send an ICMP message indicating packet has been ignored because no
     // UDP sockets are bound to the specified port.
     if unreachable {
-        let icmp_repr = Icmpv4Repr::DestinationUnreachable {
-            reason: Icmpv4DestinationUnreachable::PortUnreachable,
-            ipv4_header_len: (ipv4_packet.header_len() * 4) as usize,
+        let icmp_repr = Icmpv4Repr {
+            message: Icmpv4Message::DestinationUnreachable(
+                Icmpv4DestinationUnreachable::PortUnreachable,
+            ),
+            payload_len: 28, // IP header (20 bytes) + UDP header (8 bytes)
         };
         let ipv4_repr = Ipv4Repr {
             src_addr: *interface.ipv4_addr,

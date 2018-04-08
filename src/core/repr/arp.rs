@@ -47,13 +47,13 @@ pub struct Arp {
 }
 
 impl Arp {
-    /// Returns the buffer size needed to serialize the ARP packet.
+    /// Returns the buffer size needed to serialize the ARP message.
     pub fn buffer_len(&self) -> usize {
         // 8 for header + 20 for addresses.
         28
     }
 
-    /// Tries to deserialize a buffer into an ARP packet.
+    /// Tries to deserialize a packet into an ARP message.
     pub fn deserialize(buffer: &[u8]) -> Result<Arp> {
         if buffer.len() < 28 {
             return Err(Error::Malformed);
@@ -76,7 +76,7 @@ impl Arp {
         })
     }
 
-    /// Serializes the ARP packet into a buffer.
+    /// Serializes the ARP message into a packet.
     pub fn serialize(&self, buffer: &mut [u8]) -> Result<()> {
         if self.buffer_len() > buffer.len() {
             return Err(Error::Exhausted);

@@ -5,6 +5,7 @@ use {
     Result,
 };
 use core::repr::{
+    Icmpv4Message,
     Icmpv4Packet,
     Icmpv4Repr,
     Ipv4Repr,
@@ -26,10 +27,9 @@ where
 {
     ipv4::send_packet_with_repr(interface, &ipv4_repr, |ipv4_payload| {
         let mut icmp_packet = Icmpv4Packet::try_new(ipv4_payload).unwrap();
-        f(icmp_packet.payload_mut());
-        // NOTE: It's important that the ICMP serialization happens after the payload
-        // is written to ensure a correct checksum.
         icmp_repr.serialize(&mut icmp_packet).unwrap();
+        f(icmp_packet.payload_mut());
+        icmp_packet.fill_checksum();
     })
 }
 
@@ -46,24 +46,26 @@ pub fn recv_packet(
 
     let icmp_recv_repr = Icmpv4Repr::deserialize(&icmp_recv_packet)?;
 
-    let (ipv4_repr, icmp_repr, icmp_payload) = match icmp_recv_repr {
-        Icmpv4Repr::EchoRequest { id, seq } => {
+    let (ipv4_send_repr, icmp_send_repr) = match icmp_recv_repr.message {
+        Icmpv4Message::EchoRequest { id, seq } => {
             debug!(
                 "Got a ping from {}; Sending response...",
                 ipv4_repr.src_addr
             );
-            let mut ipv4_repr = ipv4_repr.clone();
-            swap(&mut ipv4_repr.src_addr, &mut ipv4_repr.dst_addr);
+            let mut ipv4_send_repr = ipv4_repr.clone();
+            swap(&mut ipv4_send_repr.src_addr, &mut ipv4_send_repr.dst_addr);
             (
-                ipv4_repr,
-                Icmpv4Repr::EchoReply { id, seq },
-                icmp_recv_packet.payload(),
+                ipv4_send_repr,
+                Icmpv4Repr {
+                    message: Icmpv4Message::EchoReply { id, seq },
+                    payload_len: icmp_recv_repr.payload_len,
+                },
             )
         }
         _ => return Err(Error::NoOp),
     };
 
-    send_packet(interface, &ipv4_repr, &icmp_repr, |payload| {
-        payload.copy_from_slice(icmp_payload);
+    send_packet(interface, &ipv4_send_repr, &icmp_send_repr, |payload| {
+        payload.copy_from_slice(icmp_recv_packet.payload());
     })
 }

@@ -23,6 +23,7 @@ pub use self::ethernet::{
 };
 pub use self::icmpv4::{
     DestinationUnreachable as Icmpv4DestinationUnreachable,
+    Message as Icmpv4Message,
     Packet as Icmpv4Packet,
     Repr as Icmpv4Repr,
     TimeExceeded as Icmpv4TimeExceeded,
