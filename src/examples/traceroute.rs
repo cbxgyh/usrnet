@@ -95,7 +95,7 @@ fn send(
         length: (8 + payload_len) as u16,
     };
 
-    let ip_repr = Ipv4Repr {
+    let ipv4_repr = Ipv4Repr {
         src_addr: *interface.ipv4_addr,
         dst_addr: socket_addr.addr,
         protocol: Ipv4Protocol::UDP,
@@ -106,23 +106,23 @@ fn send(
     while let Err(_) = socket_set
         .socket(raw_handle)
         .as_raw_socket()
-        .send(ip_repr.buffer_len())
+        .send(ipv4_repr.buffer_len())
         .map(|ip_buffer| {
-            let mut ip_packet = Ipv4Packet::try_new(ip_buffer).unwrap();
-            ip_repr.serialize(&mut ip_packet);
+            let mut ipv4_packet = Ipv4Packet::try_new(ip_buffer).unwrap();
+            ipv4_repr.serialize(&mut ipv4_packet);
 
             // We need to update the checksum manually if we set a custom TTL,
             // or any header field.
-            ip_packet.set_ttl(ttl as u8);
-            ip_packet.set_header_checksum(0);
-            let checksum = ip_packet.gen_header_checksum();
-            ip_packet.set_header_checksum(checksum);
+            ipv4_packet.set_ttl(ttl as u8);
+            ipv4_packet.set_header_checksum(0);
+            let checksum = ipv4_packet.gen_header_checksum();
+            ipv4_packet.set_header_checksum(checksum);
 
-            let mut udp_packet = UdpPacket::try_new(ip_packet.payload_mut()).unwrap();
+            let mut udp_packet = UdpPacket::try_new(ipv4_packet.payload_mut()).unwrap();
             for i in 0 .. payload_len {
                 udp_packet.payload_mut()[i] = rand::random::<u8>();
             }
-            udp_repr.serialize(&mut udp_packet, &ip_repr);
+            udp_repr.serialize(&mut udp_packet, &ipv4_repr);
         }) {
         env::tick(interface, socket_set);
     }
@@ -149,23 +149,23 @@ fn recv(
             .as_raw_socket()
             .recv()
             .and_then(|ip_buffer| {
-                let ip_packet = Ipv4Packet::try_new(ip_buffer)?;
-                if ip_packet.protocol() != ipv4_protocols::ICMP
-                    || ip_packet.dst_addr() != *interface.ipv4_addr
+                let ipv4_packet = Ipv4Packet::try_new(ip_buffer)?;
+                if ipv4_packet.protocol() != ipv4_protocols::ICMP
+                    || ipv4_packet.dst_addr() != *interface.ipv4_addr
                 {
                     return Err(Error::NoOp);
                 }
 
-                let response_addr = ip_packet.src_addr();
+                let response_addr = ipv4_packet.src_addr();
 
                 // We care only about two cases of ICMP messages:
                 //
                 // 1. Destination Unreachable => If the UDP packet reached the final host.
                 // 2. Time Exceeded           => If the UDP packet was dropped by a router.
-                let icmp_packet = Icmpv4Packet::try_new(ip_packet.payload())?;
+                let icmp_packet = Icmpv4Packet::try_new(ipv4_packet.payload())?;
                 icmp_packet.check_encoding()?;
                 let icmp_repr = Icmpv4Repr::deserialize(&icmp_packet)?;
-                let ip_packet = match icmp_repr {
+                let ipv4_packet = match icmp_repr {
                     Icmpv4Repr::DestinationUnreachable {
                         reason: Icmpv4DestinationUnreachable::PortUnreachable,
                         ..
@@ -180,16 +180,16 @@ fn recv(
                 // So I'm not 100% sure about this, but let's check the (1) destination address
                 // and (2) transport protocol only since source address, checksum, etc. can get
                 // modified by a NAT.
-                if ip_packet.dst_addr() != socket_addr.addr
-                    || ip_packet.protocol() != ipv4_protocols::UDP
+                if ipv4_packet.dst_addr() != socket_addr.addr
+                    || ipv4_packet.protocol() != ipv4_protocols::UDP
                 {
                     return Err(Error::NoOp);
                 }
 
                 // We only have a portion of the original IP packet, so let's be careful parsing
                 // the payload...
-                let ip_header_len = (ip_packet.header_len() * 4) as usize;
-                let ip_payload = &ip_packet.as_ref()[ip_header_len ..];
+                let ip_header_len = (ipv4_packet.header_len() * 4) as usize;
+                let ip_payload = &ipv4_packet.as_ref()[ip_header_len ..];
                 let udp_packet = UdpPacket::try_new(ip_payload)?;
 
                 // Likewise, let's inspect the destination port only since the source port might

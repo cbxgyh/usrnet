@@ -43,14 +43,14 @@ impl<'a> Socket for UdpSocket<'a> {
                     length: UdpPacket::<&[u8]>::buffer_len(payload_len) as u16,
                 };
 
-                let ip_repr = Ipv4Repr {
+                let ipv4_repr = Ipv4Repr {
                     src_addr: binding.addr,
                     dst_addr: addr.addr,
                     protocol: Ipv4Protocol::UDP,
                     payload_len: udp_repr.buffer_len() as u16,
                 };
 
-                let packet = Packet::Udp(ip_repr, udp_repr, &mut buffer[..]);
+                let packet = Packet::Udp(ipv4_repr, udp_repr, &mut buffer[..]);
                 f(packet)
             })
     }
@@ -60,13 +60,13 @@ impl<'a> Socket for UdpSocket<'a> {
 
         self.recv_buffer
             .enqueue_maybe(|&mut (ref mut buffer, ref mut addr)| match *packet {
-                Packet::Udp(ref ip_repr, ref udp_repr, ref payload) => {
-                    if ip_repr.dst_addr != binding.addr || udp_repr.dst_port != binding.port {
+                Packet::Udp(ref ipv4_repr, ref udp_repr, ref payload) => {
+                    if ipv4_repr.dst_addr != binding.addr || udp_repr.dst_port != binding.port {
                         Err(Error::NoOp)
                     } else {
                         buffer.try_resize(payload.len(), 0)?;
                         buffer.copy_from_slice(payload);
-                        addr.addr = ip_repr.src_addr;
+                        addr.addr = ipv4_repr.src_addr;
                         addr.port = udp_repr.src_port;
                         Ok(())
                     }

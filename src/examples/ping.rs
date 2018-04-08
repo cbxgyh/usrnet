@@ -30,7 +30,7 @@ pub fn ping(
 ) -> Option<Duration> {
     let icmp_repr = Icmpv4Repr::EchoRequest { id, seq };
 
-    let ip_repr = Ipv4Repr {
+    let ipv4_repr = Ipv4Repr {
         src_addr: *interface.ipv4_addr,
         dst_addr: ping_addr,
         protocol: Ipv4Protocol::ICMP,
@@ -41,12 +41,12 @@ pub fn ping(
     while let Err(_) = socket_set
         .socket(raw_handle)
         .as_raw_socket()
-        .send(ip_repr.buffer_len())
+        .send(ipv4_repr.buffer_len())
         .map(|ip_buffer| {
-            let mut ip_packet = Ipv4Packet::try_new(ip_buffer).unwrap();
-            ip_repr.serialize(&mut ip_packet);
+            let mut ipv4_packet = Ipv4Packet::try_new(ip_buffer).unwrap();
+            ipv4_repr.serialize(&mut ipv4_packet);
 
-            let mut icmp_packet = Icmpv4Packet::try_new(ip_packet.payload_mut()).unwrap();
+            let mut icmp_packet = Icmpv4Packet::try_new(ipv4_packet.payload_mut()).unwrap();
             icmp_packet.payload_mut().copy_from_slice(payload);
             icmp_repr.serialize(&mut icmp_packet).unwrap();
         }) {
@@ -65,14 +65,14 @@ pub fn ping(
             .as_raw_socket()
             .recv()
             .and_then(|ip_buffer| {
-                let ip_packet = Ipv4Packet::try_new(ip_buffer)?;
-                if ip_packet.protocol() != ipv4_protocols::ICMP || ip_packet.src_addr() != ping_addr
-                    || ip_packet.dst_addr() != *interface.ipv4_addr
+                let ipv4_packet = Ipv4Packet::try_new(ip_buffer)?;
+                if ipv4_packet.protocol() != ipv4_protocols::ICMP || ipv4_packet.src_addr() != ping_addr
+                    || ipv4_packet.dst_addr() != *interface.ipv4_addr
                 {
                     return Err(Error::NoOp);
                 }
 
-                let icmp_packet = Icmpv4Packet::try_new(ip_packet.payload())?;
+                let icmp_packet = Icmpv4Packet::try_new(ipv4_packet.payload())?;
                 icmp_packet.check_encoding()?;
                 let icmp_repr = Icmpv4Repr::deserialize(&icmp_packet)?;
 
