@@ -8,6 +8,7 @@ pub mod raw;
 pub mod set;
 pub mod socket;
 pub mod tagged;
+pub mod tcp;
 pub mod udp;
 
 pub use self::bindings::{
@@ -25,4 +26,5 @@ pub use self::socket::{
     Socket,
 };
 pub use self::tagged::TaggedSocket;
+pub use self::tcp::TcpSocket;
 pub use self::udp::UdpSocket;

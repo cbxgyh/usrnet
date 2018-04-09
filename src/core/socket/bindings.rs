@@ -29,6 +29,7 @@ impl Display for SocketAddr {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 enum TaggedSocketAddr {
     Udp(SocketAddr),
+    Tcp(SocketAddr),
 }
 
 /// Represents a borrow of a socket address to ensure sockets are binded to
@@ -44,6 +45,7 @@ impl<'a> Deref for AddrLease<'a> {
 
     fn deref(&self) -> &SocketAddr {
         match self.addr {
+            TaggedSocketAddr::Tcp(ref addr) => addr,
             TaggedSocketAddr::Udp(ref addr) => addr,
         }
     }
@@ -69,10 +71,16 @@ impl Bindings {
         }
     }
 
-    /// Tries to reserve the specified UDP address returning an Error::InUse
+    /// Tries to reserve the specified UDP binding returning an Error::InUse
     /// if the binding is already in use.
     pub fn bind_udp(&self, udp_binding: SocketAddr) -> Result<AddrLease> {
         self.bind(TaggedSocketAddr::Udp(udp_binding))
+    }
+
+    /// Tries to reserve the specified TCP binding returning an Error::InUse
+    /// if the binding is already in use.
+    pub fn bind_tcp(&self, tcp_binding: SocketAddr) -> Result<AddrLease> {
+        self.bind(TaggedSocketAddr::Tcp(tcp_binding))
     }
 
     fn bind(&self, binding: TaggedSocketAddr) -> Result<AddrLease> {

@@ -19,6 +19,7 @@ use core::socket::{
     RawType,
     SocketAddr,
     SocketSet,
+    TcpSocket,
     UdpSocket,
 };
 use core::storage::{
@@ -136,7 +137,7 @@ pub fn raw_socket<'a>(interface: &mut Interface, raw_type: RawType) -> RawSocket
     RawSocket::new(raw_type, buffer(), buffer())
 }
 
-/// Creates a udp socket.
+/// Creates a UDP socket.
 pub fn udp_socket<'a>(interface: &mut Interface, binding: AddrLease<'a>) -> UdpSocket<'a> {
     let addr = SocketAddr {
         addr: Ipv4Address::new([0, 0, 0, 0]),
@@ -156,6 +157,15 @@ pub fn udp_socket<'a>(interface: &mut Interface, binding: AddrLease<'a>) -> UdpS
     };
 
     UdpSocket::new(binding, buffer(), buffer())
+}
+
+/// Creates a TCP socket.
+pub fn tcp_socket<'a>(interface: &mut Interface, binding: AddrLease<'a>) -> TcpSocket<'a> {
+    TcpSocket::new(
+        binding,
+        SystemEnv::new(),
+        interface.dev.max_transmission_unit(),
+    )
 }
 
 /// Sends and receives packets from/to sockets and the interface.
