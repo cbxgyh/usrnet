@@ -4,6 +4,7 @@ use std::fmt::{
     Result as FmtResult,
 };
 use std::io::Write;
+use std::net::Ipv4Addr as StdIpv4Addr;
 use std::ops::Deref;
 use std::result::Result as StdResult;
 use std::str::FromStr;
@@ -81,6 +82,18 @@ impl From<u32> for Address {
         let mut bytes = [0; 4];
         (&mut bytes[..]).write_u32::<NetworkEndian>(addr).unwrap();
         Address(bytes)
+    }
+}
+
+impl<'a> From<&'a StdIpv4Addr> for Address {
+    fn from(addr: &'a StdIpv4Addr) -> Address {
+        Address(addr.octets())
+    }
+}
+
+impl Into<StdIpv4Addr> for Address {
+    fn into(self) -> StdIpv4Addr {
+        StdIpv4Addr::new(self.0[0], self.0[1], self.0[2], self.0[3])
     }
 }
 
@@ -245,7 +258,8 @@ impl Repr {
     }
 }
 
-/// [https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml](https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml)
+/// [https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml]
+/// (https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml)
 pub mod protocols {
     pub const ICMP: u8 = 1;
 

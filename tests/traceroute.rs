@@ -13,64 +13,48 @@ use std::time::{
 };
 
 use usrnet::core::repr::Ipv4Address;
-use usrnet::core::service::Interface;
 use usrnet::core::socket::{
     RawType,
-    SocketSet,
     TaggedSocket,
 };
 use usrnet::examples::*;
 
-lazy_static! {
-    static ref TIMEOUT: Duration = Duration::from_millis(50);
+pub const MAX_TTL: u8 = 10;
 
-    static ref MAX_TTL: u8 = 16;
-}
-
-fn traceroute_addr<F>(
-    interface: &mut Interface,
-    socket_set: &mut SocketSet,
-    addr: Ipv4Address,
-    f: F,
-) -> Option<()>
+fn traceroute_addr<F>(context: &mut context::Context, addr: Ipv4Address, f: F) -> Option<()>
 where
     F: FnMut(u8, Option<(Duration, Ipv4Address)>),
 {
-    let raw_socket = TaggedSocket::Raw(env::raw_socket(interface, RawType::Ipv4));
-    let raw_handle = socket_set.add_socket(raw_socket).unwrap();
+    let raw_socket = TaggedSocket::Raw(env::raw_socket(&mut context.interface, RawType::Ipv4));
+    let raw_handle = context.socket_set.add_socket(raw_socket).unwrap();
 
     traceroute(
-        interface,
-        socket_set,
+        &mut context.interface,
+        &mut context.socket_set,
         raw_handle,
         addr,
         64,
-        *MAX_TTL,
-        *TIMEOUT,
+        MAX_TTL,
+        *context::ONE_SEC,
         f,
     )
 }
 
 #[test]
 fn traceroute_default_gateway() {
-    context::run(|interface, socket_set| {
+    context::run(|context| {
         let (mut callbacks, mut addr) = (0, Ipv4Address::new([0, 0, 0, 0]));
 
         assert!(
-            traceroute_addr(
-                interface,
-                socket_set,
-                *env::DEFAULT_IPV4_GATEWAY,
-                |ttl, hop| {
-                    assert_eq!(ttl, 1);
-                    assert_eq!(callbacks, 0);
-                    callbacks += 1;
-                    if let Some((time, response_addr)) = hop {
-                        assert!(time < *TIMEOUT);
-                        addr = response_addr;
-                    }
+            traceroute_addr(context, *env::DEFAULT_IPV4_GATEWAY, |ttl, hop| {
+                assert_eq!(ttl, 1);
+                assert_eq!(callbacks, 0);
+                callbacks += 1;
+                if let Some((time, response_addr)) = hop {
+                    assert!(time < *context::ONE_SEC);
+                    addr = response_addr;
                 }
-            ).is_some()
+            }).is_some()
         );
 
         assert_eq!(callbacks, 1);
@@ -80,28 +64,23 @@ fn traceroute_default_gateway() {
 
 #[test]
 fn traceroute_unknown_ip() {
-    context::run(|interface, socket_set| {
+    context::run(|context| {
         let mut callbacks = 0;
 
         assert!(
-            traceroute_addr(
-                interface,
-                socket_set,
-                Ipv4Address::new([10, 0, 0, 128]),
-                |ttl, _| {
-                    assert!(ttl <= *MAX_TTL);
-                    callbacks += 1;
-                }
-            ).is_none()
+            traceroute_addr(context, Ipv4Address::new([10, 0, 0, 128]), |ttl, _| {
+                assert!(ttl <= MAX_TTL);
+                callbacks += 1;
+            }).is_none()
         );
 
-        assert_eq!(callbacks, *MAX_TTL);
+        assert_eq!(callbacks, MAX_TTL);
     });
 }
 
 #[test]
 fn traceroute_responses() {
-    context::run(|interface, socket_set| {
+    context::run(|context| {
         let traceroute = thread::spawn(|| {
             let output = context::Output::from(
                 Command::new("traceroute")
@@ -114,8 +93,8 @@ fn traceroute_responses() {
 
         let start_at = Instant::now();
 
-        while Instant::now() - start_at < Duration::from_secs(1) {
-            env::tick(interface, socket_set);
+        while Instant::now() - start_at < *context::ONE_SEC {
+            env::tick(&mut context.interface, &mut context.socket_set);
         }
 
         traceroute.join().unwrap();

@@ -13,25 +13,15 @@ use std::time::{
 };
 
 use usrnet::core::repr::Ipv4Address;
-use usrnet::core::service::Interface;
 use usrnet::core::socket::{
     RawType,
-    SocketSet,
     TaggedSocket,
 };
 use usrnet::examples::*;
 
-lazy_static! {
-    static ref TIMEOUT: Duration = Duration::from_secs(1);
-}
-
-fn ping_addr(
-    interface: &mut Interface,
-    socket_set: &mut SocketSet,
-    addr: Ipv4Address,
-) -> Option<Duration> {
-    let raw_socket = TaggedSocket::Raw(env::raw_socket(interface, RawType::Ipv4));
-    let raw_handle = socket_set.add_socket(raw_socket).unwrap();
+fn ping_addr(context: &mut context::Context, addr: Ipv4Address) -> Option<Duration> {
+    let raw_socket = TaggedSocket::Raw(env::raw_socket(&mut context.interface, RawType::Ipv4));
+    let raw_handle = context.socket_set.add_socket(raw_socket).unwrap();
 
     let mut payload = [0; 64];
     for i in 0 .. payload.len() {
@@ -39,43 +29,41 @@ fn ping_addr(
     }
 
     ping(
-        interface,
-        socket_set,
+        &mut context.interface,
+        &mut context.socket_set,
         raw_handle,
         addr,
         rand::random::<u16>(),
         0,
         &payload,
-        *TIMEOUT,
+        *context::ONE_SEC,
     )
 }
 
 #[test]
 fn ping_default_gateway() {
-    context::run(|interface, socket_set| {
-        assert!(ping_addr(interface, socket_set, *env::DEFAULT_IPV4_GATEWAY).unwrap() < *TIMEOUT);
+    context::run(|context| {
+        assert!(ping_addr(context, *env::DEFAULT_IPV4_GATEWAY).unwrap() < *context::ONE_SEC);
     });
 }
 
 #[test]
 fn ping_google_dns_servers() {
-    context::run(|interface, socket_set| {
-        assert!(
-            ping_addr(interface, socket_set, Ipv4Address::new([8, 8, 8, 8])).unwrap() < *TIMEOUT
-        );
+    context::run(|context| {
+        assert!(ping_addr(context, Ipv4Address::new([8, 8, 8, 8])).unwrap() < *context::ONE_SEC);
     });
 }
 
 #[test]
 fn ping_unknown_ip() {
-    context::run(|interface, socket_set| {
-        assert!(ping_addr(interface, socket_set, Ipv4Address::new([10, 0, 0, 128])).is_none());
+    context::run(|context| {
+        assert!(ping_addr(context, Ipv4Address::new([10, 0, 0, 128])).is_none());
     });
 }
 
 #[test]
 fn ping_responses() {
-    context::run(|interface, socket_set| {
+    context::run(|context| {
         let ping = thread::spawn(|| {
             let output = context::Output::from(
                 Command::new("ping")
@@ -88,8 +76,8 @@ fn ping_responses() {
 
         let start_at = Instant::now();
 
-        while Instant::now() - start_at < Duration::from_secs(1) {
-            env::tick(interface, socket_set);
+        while Instant::now() - start_at < *context::ONE_SEC {
+            env::tick(&mut context.interface, &mut context.socket_set);
         }
 
         ping.join().unwrap();

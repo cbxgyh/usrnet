@@ -28,11 +28,11 @@ fn main() {
 
     let mut interface = env::default_interface();
     let bindings = Bindings::new();
-    let sock_addr = SocketAddr {
+    let socket_addr = SocketAddr {
         addr: *interface.ipv4_addr,
         port,
     };
-    let addr_binding = bindings.bind_udp(sock_addr).unwrap();
+    let addr_binding = bindings.bind_udp(socket_addr).unwrap();
     let udp_socket = TaggedSocket::Udp(env::udp_socket(&mut interface, addr_binding));
 
     let mut socket_set = env::socket_set();

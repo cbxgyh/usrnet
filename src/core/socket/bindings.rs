@@ -5,6 +5,7 @@ use std::fmt::{
     Formatter,
     Result as FmtResult,
 };
+use std::net::SocketAddrV4;
 use std::ops::Deref;
 
 use {
@@ -18,6 +19,21 @@ use core::repr::Ipv4Address;
 pub struct SocketAddr {
     pub addr: Ipv4Address,
     pub port: u16,
+}
+
+impl<'a> From<&'a SocketAddrV4> for SocketAddr {
+    fn from(socket_addr: &'a SocketAddrV4) -> SocketAddr {
+        SocketAddr {
+            addr: Ipv4Address::from(socket_addr.ip()),
+            port: socket_addr.port(),
+        }
+    }
+}
+
+impl Into<SocketAddrV4> for SocketAddr {
+    fn into(self) -> SocketAddrV4 {
+        SocketAddrV4::new(self.addr.into(), self.port)
+    }
 }
 
 impl Display for SocketAddr {
