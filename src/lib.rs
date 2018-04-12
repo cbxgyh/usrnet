@@ -2,6 +2,7 @@
 #[macro_use]
 extern crate assert_matches;
 extern crate byteorder;
+extern crate get_if_addrs;
 #[macro_use]
 extern crate lazy_static;
 extern crate libc;

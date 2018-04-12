@@ -20,6 +20,7 @@ use self::state::{
 };
 
 /// A TCP socket.
+#[derive(Debug)]
 pub struct TcpSocket<'a, T: Env = SystemEnv> {
     // Use an Option to implement consumable states behind a mutable socket
     // abstraction.
@@ -58,18 +59,42 @@ impl<'a, T: Env> TcpSocket<'a, T> {
         TcpSocket { inner: Some(inner) }
     }
 
-    /// Transitions the socket into the SynSent state as part of the "active open"
-    /// process.
+    /// Initiates a connection to a TCP endpoint.
     ///
     /// # Panics
     ///
     /// Causes a panic if the connection is not in the closed state!
     pub fn connect(&mut self, addr: SocketAddr) {
-        let inner = self.inner.take().unwrap();
+        match self.inner.take() {
+            Some(TcpState::Closed(closed)) => {
+                self.inner = Some(TcpState::from(closed.to_syn_sent(addr)))
+            }
+            _ => panic!("TcpSocket::connect(...) requires a closed socket!"),
+        }
+    }
 
-        match inner {
-            TcpState::Closed(closed) => self.inner = Some(TcpState::from(closed.to_syn_sent(addr))),
-            _ => panic!("TcpSocket::connect(...) requires a socket in Closed state!"),
+    /// Checks if the socket is closed. The socket may be closed for reasons
+    /// including an explicit close, timeout, reset, etc.
+    pub fn is_closed(&self) -> bool {
+        match self.inner {
+            Some(TcpState::Closed(_)) => true,
+            _ => false,
+        }
+    }
+
+    /// Checks if the socket is connecting to an endpoint.
+    pub fn is_establishing(&self) -> bool {
+        match self.inner {
+            Some(TcpState::SynSent(_)) => true,
+            _ => false,
+        }
+    }
+
+    /// Checks if the socket has connected to an endpoint.
+    pub fn is_connected(&self) -> bool {
+        match self.inner {
+            Some(TcpState::Established(_)) => true,
+            _ => false,
         }
     }
 }

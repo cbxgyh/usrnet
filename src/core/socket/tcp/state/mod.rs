@@ -1,4 +1,5 @@
 mod closed;
+mod established;
 mod syn_sent;
 
 use {
@@ -12,6 +13,7 @@ use core::socket::{
 use core::time::Env;
 
 pub use self::closed::TcpClosed;
+pub use self::established::TcpEstablished;
 pub use self::syn_sent::TcpSynSent;
 
 /// A generic interface for implementing TCP state behavior and transitions.
@@ -34,9 +36,11 @@ pub trait Tcp<'a, T: Env>: Into<TcpState<'a, T>> {
 }
 
 /// One of several TCP states.
+#[derive(Debug)]
 pub enum TcpState<'a, T: Env> {
     Closed(TcpClosed<'a, T>),
     SynSent(TcpSynSent<'a, T>),
+    Established(TcpEstablished<'a, T>),
 }
 
 impl<'a, T: Env> From<TcpClosed<'a, T>> for TcpState<'a, T> {
@@ -51,6 +55,12 @@ impl<'a, T: Env> From<TcpSynSent<'a, T>> for TcpState<'a, T> {
     }
 }
 
+impl<'a, T: Env> From<TcpEstablished<'a, T>> for TcpState<'a, T> {
+    fn from(established: TcpEstablished<'a, T>) -> TcpState<'a, T> {
+        TcpState::Established(established)
+    }
+}
+
 impl<'a, T: Env> Tcp<'a, T> for TcpState<'a, T> {
     fn send_forward<F, R>(self, f: F) -> (TcpState<'a, T>, Result<R>)
     where
@@ -59,6 +69,7 @@ impl<'a, T: Env> Tcp<'a, T> for TcpState<'a, T> {
         match self {
             TcpState::Closed(closed) => closed.send_forward(f),
             TcpState::SynSent(syn_sent) => syn_sent.send_forward(f),
+            TcpState::Established(established) => established.send_forward(f),
         }
     }
 
@@ -66,16 +77,18 @@ impl<'a, T: Env> Tcp<'a, T> for TcpState<'a, T> {
         match self {
             TcpState::Closed(closed) => closed.recv_forward(packet),
             TcpState::SynSent(syn_sent) => syn_sent.recv_forward(packet),
+            TcpState::Established(established) => established.recv_forward(packet),
         }
     }
 }
 
 /// Shared information across TCP states.
+#[derive(Debug)]
 pub struct TcpContext<'a, T>
 where
     T: Env,
 {
     pub binding: AddrLease<'a>,
-    pub time_env: T,
     pub interface_mtu: usize,
+    pub time_env: T,
 }

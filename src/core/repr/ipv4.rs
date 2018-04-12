@@ -209,6 +209,7 @@ impl Repr {
             dst_addr: packet.dst_addr(),
             protocol: match packet.protocol() {
                 protocols::ICMP => Protocol::ICMP,
+                protocols::TCP => Protocol::TCP,
                 protocols::UDP => Protocol::UDP,
                 _ => return Err(Error::Malformed),
             },

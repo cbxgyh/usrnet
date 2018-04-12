@@ -41,7 +41,7 @@ pub fn send(interface: &mut Interface, socket_set: &mut SocketSet) {
                             Ok(())
                         }
                     }
-                    Packet::Tcp(ref ipv4_repr, ref tcp_repr, ref payload) => {
+                    Packet::Tcp((ref ipv4_repr, ref tcp_repr, ref payload)) => {
                         tcp::send_packet(interface, ipv4_repr, tcp_repr, |payload_| {
                             payload_.copy_from_slice(payload);
                         })

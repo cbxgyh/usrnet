@@ -1,14 +1,16 @@
 //! Abstractions for providing the current time.
 
+use std::fmt::Debug;
 use std::time::Instant;
 
 /// An environment that provides the current time.
-pub trait Env {
+pub trait Env: Debug {
     /// Returns an instance corresponding to "now".
     fn now_instant(&self) -> Instant;
 }
 
 /// An environment that provides system based time.
+#[derive(Debug)]
 pub struct SystemEnv;
 
 impl SystemEnv {
@@ -24,6 +26,7 @@ impl Env for SystemEnv {
 }
 
 /// An environment that provides a configurable time.
+#[derive(Debug)]
 pub struct MockEnv {
     pub now: Instant,
 }

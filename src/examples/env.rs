@@ -1,4 +1,10 @@
+use std::net::{
+    IpAddr as StdIpAddr,
+    Ipv4Addr as StdIpv4Addr,
+};
 use std::vec::Vec;
+
+use get_if_addrs;
 
 use core::arp_cache::ArpCache;
 use core::repr::{
@@ -43,6 +49,12 @@ lazy_static! {
         Ipv4Address::new([10, 0, 0, 102])
     };
 
+    /// An IPv4 address not assigned to any hosts on the network.
+    pub static ref NO_HOST_IPV4_ADDR: Ipv4Address = {
+        Ipv4Address::new([10, 0, 0, 64])
+    };
+
+
     /// Default interface IPv4 address with a subnet mask.
     pub static ref DEFAULT_IPV4_ADDR_CIDR: Ipv4AddressCidr = {
         Ipv4AddressCidr::new(*DEFAULT_IPV4_ADDR, 24)
@@ -79,6 +91,19 @@ mod platform {
 }
 
 pub use self::platform::default_dev;
+
+/// Get's the IPv4 address for an interface. See tap.sh for more info.
+pub fn ifr_addr(ifr_name: &str) -> StdIpv4Addr {
+    for interface in get_if_addrs::get_if_addrs().unwrap() {
+        if interface.name == ifr_name {
+            if let StdIpAddr::V4(ipv4_addr) = interface.ip() {
+                return ipv4_addr;
+            }
+        }
+    }
+
+    panic!("IPv4 address for '{}' not found!", ifr_name);
+}
 
 /// Creates a network interface.
 pub fn default_interface() -> Interface {

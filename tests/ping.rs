@@ -57,7 +57,7 @@ fn ping_google_dns_servers() {
 #[test]
 fn ping_unknown_ip() {
     context::run(|context| {
-        assert!(ping_addr(context, Ipv4Address::new([10, 0, 0, 128])).is_none());
+        assert!(ping_addr(context, *env::NO_HOST_IPV4_ADDR).is_none());
     });
 }
 

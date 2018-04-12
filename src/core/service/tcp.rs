@@ -51,7 +51,7 @@ pub fn recv_packet(
 
     let tcp_repr = TcpRepr::deserialize(&tcp_packet);
 
-    let packet = Packet::Tcp(*ipv4_repr, tcp_repr, tcp_packet.payload());
+    let packet = Packet::Tcp((*ipv4_repr, tcp_repr, tcp_packet.payload()));
     for socket in socket_set.iter_mut() {
         socket.recv_forward(&packet).ok();
     }

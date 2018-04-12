@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::{
+    Debug,
     Display,
     Formatter,
     Result as FmtResult,
@@ -50,10 +51,15 @@ enum TaggedSocketAddr {
 
 /// Represents a borrow of a socket address to ensure sockets are binded to
 /// unique addresses.
-#[derive(Debug)]
 pub struct AddrLease<'a> {
     addr: TaggedSocketAddr,
     owner: &'a Bindings,
+}
+
+impl<'a> Debug for AddrLease<'a> {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        write!(f, "{:?}", self.addr)
+    }
 }
 
 impl<'a> Deref for AddrLease<'a> {

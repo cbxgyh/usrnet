@@ -12,6 +12,7 @@ use super::{
 };
 
 /// The TCP CLOSED state.
+#[derive(Debug)]
 pub struct TcpClosed<'a, T: Env> {
     pub context: TcpContext<'a, T>,
 }
@@ -23,10 +24,10 @@ impl<'a, T: Env> TcpClosed<'a, T> {
     /// connection with the specified endpoint.
     pub fn to_syn_sent(self, addr: SocketAddr) -> TcpSynSent<'a, T> {
         TcpSynSent {
-            sent_syn_to: addr,
             sent_syn_at: None,
-            retransmit_timeout: Duration::from_millis(500),
             seq_num: rand::random::<u32>(),
+            connecting_to: addr,
+            retransmit_timeout: Duration::from_millis(500),
             context: self.context,
         }
     }
