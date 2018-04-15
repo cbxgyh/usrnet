@@ -2,7 +2,6 @@ use std::ops::{
     Deref,
     DerefMut,
 };
-use std::vec::Vec;
 
 use {
     Error,

@@ -2,7 +2,6 @@ use std::net::{
     IpAddr as StdIpAddr,
     Ipv4Addr as StdIpv4Addr,
 };
-use std::vec::Vec;
 
 use get_if_addrs;
 
