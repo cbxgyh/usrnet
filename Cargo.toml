@@ -26,10 +26,13 @@ name = "dev_up"
 name = "ping"
 
 [[example]]
-name = "tcp_echo_client"
+name = "tcp_cat"
 
 [[example]]
 name = "traceroute"
 
 [[example]]
-name = "udp_echo_server"
+name = "udp_cat"
+
+[[example]]
+name = "udp_echo"

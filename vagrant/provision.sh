@@ -17,6 +17,7 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
     build-essential     \
     curl                \
     manpages-dev        \
+    nmap                \
     tmux                \
     tree                \
     tshark

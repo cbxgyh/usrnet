@@ -3,8 +3,6 @@ extern crate clap;
 extern crate env_logger;
 extern crate usrnet;
 
-use std::time::Duration;
-
 use usrnet::core::socket::{
     Bindings,
     SocketAddr,
@@ -12,17 +10,16 @@ use usrnet::core::socket::{
 };
 use usrnet::examples::*;
 
-/// Echo's incoming UDP packets to the sender.
+/// Starts a UDP server that echo's packets to the sender.
 fn main() {
     env_logger::init();
 
     let matches = clap_app!(app =>
-        (@arg PORT: +takes_value "UDP port to bind")
+        (@arg PORT: +takes_value +required "UDP port to bind")
     ).get_matches();
 
     let port = matches
         .value_of("PORT")
-        .or(Some("4096"))
         .and_then(|port| port.parse::<u16>().ok())
         .expect("Bad UDP port!");
 
@@ -38,14 +35,10 @@ fn main() {
     let mut socket_set = env::socket_set();
     let udp_handle = socket_set.add_socket(udp_socket).unwrap();
 
-    println!("Running UDP echo server on port {}; You can use udp_echo_client.py to generate UDP packets.", port);
+    println!(
+        "Running UDP echo server; Use 'ncat -u {} {}' to send packets.",
+        socket_addr.addr, socket_addr.port
+    );
 
-    loop {
-        udp_echo(
-            &mut interface,
-            &mut socket_set,
-            udp_handle,
-            Duration::from_secs(60),
-        );
-    }
+    udp_echo(&mut interface, &mut socket_set, udp_handle, || true);
 }

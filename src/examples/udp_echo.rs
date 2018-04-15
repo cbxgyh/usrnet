@@ -1,67 +1,45 @@
-use std::time::{
-    Duration,
-    Instant,
-};
-use std::vec::Vec;
-
 use core::service::Interface;
-use core::socket::{
-    SocketAddr,
-    SocketSet,
-};
+use core::socket::SocketSet;
 use examples::env;
 
-/// Waits for a single UDP packet and echo's it to the sender.
-pub fn udp_echo(
+/// Runs a UDP echo server as long as f returns true.
+pub fn udp_echo<F: FnMut() -> bool>(
     interface: &mut Interface,
     socket_set: &mut SocketSet,
     udp_handle: usize,
-    timeout: Duration,
-) -> Option<()> {
-    if let Some((payload, addr)) = recv(interface, socket_set, udp_handle, timeout) {
-        // Socket may have a full send buffer!
+    mut f: F,
+) {
+    let mut buf = vec![];
+
+    while f() {
+        env::tick(interface, socket_set);
+
+        let addr = match socket_set.socket(udp_handle).as_udp_socket().recv() {
+            Ok((payload, addr)) => {
+                buf.resize(payload.len(), 0);
+                buf.copy_from_slice(payload);
+                addr
+            }
+            _ => continue,
+        };
+
+        // Write response, socket may have a full send buffer!
         while let Err(_) = socket_set
             .socket(udp_handle)
             .as_udp_socket()
-            .send(payload.len(), addr)
-            .map(|buffer| buffer.copy_from_slice(&payload))
+            .send(buf.len(), addr)
+            .map(|buffer| buffer.copy_from_slice(&buf))
         {
             env::tick(interface, socket_set);
         }
-
-        // Now drain to guarantee the UDP response makes it onto the link.
-        while socket_set
-            .socket(udp_handle)
-            .as_udp_socket()
-            .send_enqueued() > 0
-        {
-            env::tick(interface, socket_set);
-        }
-
-        Some(())
-    } else {
-        None
     }
-}
 
-fn recv(
-    interface: &mut Interface,
-    socket_set: &mut SocketSet,
-    udp_handle: usize,
-    timeout: Duration,
-) -> Option<(Vec<u8>, SocketAddr)> {
-    let wait_at = Instant::now();
-    let mut buf = vec![0; interface.dev.max_transmission_unit()];
-
-    while Instant::now().duration_since(wait_at) < timeout {
-        if let Ok((payload, addr)) = socket_set.socket(udp_handle).as_udp_socket().recv() {
-            buf.resize(payload.len(), 0);
-            buf.copy_from_slice(payload);
-            return Some((buf, addr));
-        }
-
+    // Now drain to ensure UDP responses make it onto the link.
+    while socket_set
+        .socket(udp_handle)
+        .as_udp_socket()
+        .send_enqueued() > 0
+    {
         env::tick(interface, socket_set);
     }
-
-    None
 }
