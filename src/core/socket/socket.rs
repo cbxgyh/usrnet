@@ -1,4 +1,7 @@
-use Result;
+use {
+    Error,
+    Result,
+};
 use core::repr::{
     Ipv4Repr,
     TcpRepr,
@@ -23,9 +26,12 @@ pub trait Socket {
     ///
     /// An Error::Exhausted error occurs if the socket has no pending packets
     /// or another error if f returns an error.
-    fn send_forward<F, R>(&mut self, f: F) -> Result<R>
+    fn send_forward<F, R>(&mut self, _f: F) -> Result<R>
     where
-        F: FnOnce(Packet) -> Result<R>;
+        F: FnOnce(Packet) -> Result<R>,
+    {
+        Err(Error::Exhausted)
+    }
 
     /// Provides a packet which the socket **MAY** enqueue for dequeueing in the
     /// future. The packet may be ignored for reasons including an exhausted buffer
@@ -35,5 +41,7 @@ pub trait Socket {
     ///
     /// An Error::Exhausted error occurs if the socket buffer is full or Error::NoOp
     /// if the packet was ignored.
-    fn recv_forward(&mut self, packet: &Packet) -> Result<()>;
+    fn recv_forward(&mut self, _packet: &Packet) -> Result<()> {
+        Err(Error::NoOp)
+    }
 }
