@@ -1,5 +1,3 @@
-use core::time::Env;
-
 use {
     Error,
     Result,
@@ -13,25 +11,25 @@ use core::socket::{
     Packet,
     SocketAddr,
 };
-
-use super::{
+use core::socket::tcp::state::{
     Tcp,
     TcpContext,
     TcpState,
 };
+use core::time::Env as TimeEnv;
 
 /// The TCP ESTABLISHED state.
 #[derive(Debug)]
-pub struct TcpEstablished<'a, T: Env> {
+pub struct TcpEstablished<T: TimeEnv> {
     pub connected_to: SocketAddr,
     pub ack_num: u32,
     pub ack_sent: bool,
     pub seq_num: u32,
-    pub context: TcpContext<'a, T>,
+    pub context: TcpContext<T>,
 }
 
-impl<'a, T: Env> Tcp<'a, T> for TcpEstablished<'a, T> {
-    fn send_forward<F, R>(self, f: F) -> (TcpState<'a, T>, Result<R>)
+impl<T: TimeEnv> Tcp<T> for TcpEstablished<T> {
+    fn send_forward<F, R>(self, f: F) -> (TcpState<T>, Result<R>)
     where
         F: FnOnce(Packet) -> Result<R>,
     {

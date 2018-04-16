@@ -9,7 +9,11 @@ use std::time::Duration;
 use rand;
 
 use usrnet::core::service::Interface;
-use usrnet::core::socket::SocketSet;
+use usrnet::core::socket::{
+    SocketEnv,
+    SocketSet,
+};
+use usrnet::core::time::SystemEnv;
 use usrnet::examples::*;
 
 lazy_static! {
@@ -43,16 +47,21 @@ impl From<StdOutput> for Output {
     }
 }
 
-pub struct Context<'a, 'b: 'a> {
+pub struct Context {
     pub interface: Interface,
-    pub socket_set: SocketSet<'a, 'b>,
+    pub socket_env: SocketEnv<SystemEnv>,
+    pub socket_set: SocketSet,
 }
 
-impl<'a, 'b: 'a> Default for Context<'a, 'b> {
-    fn default() -> Context<'a, 'b> {
+impl Default for Context {
+    fn default() -> Context {
+        let interface = env::default_interface();
+        let socket_env = SocketEnv::new(&interface, SystemEnv::new());
+        let socket_set = SocketSet::new(32);
         Context {
-            interface: env::default_interface(),
-            socket_set: env::socket_set(),
+            interface,
+            socket_env,
+            socket_set,
         }
     }
 }

@@ -17,28 +17,27 @@ use core::socket::{
     Packet,
     SocketAddr,
 };
-use core::time::Env;
-
-use super::{
+use core::socket::tcp::state::{
     Tcp,
     TcpClosed,
     TcpContext,
     TcpEstablished,
     TcpState,
 };
+use core::time::Env as TimeEnv;
 
 /// The TCP SYN_SENT state.
 #[derive(Debug)]
-pub struct TcpSynSent<'a, T: Env> {
+pub struct TcpSynSent<T: TimeEnv> {
     pub connecting_to: SocketAddr,
     pub sent_syn_at: Option<Instant>,
     pub seq_num: u32,
     pub retransmit_timeout: Duration,
-    pub context: TcpContext<'a, T>,
+    pub context: TcpContext<T>,
 }
 
-impl<'a, T: Env> Tcp<'a, T> for TcpSynSent<'a, T> {
-    fn send_forward<F, R>(self, f: F) -> (TcpState<'a, T>, Result<R>)
+impl<T: TimeEnv> Tcp<T> for TcpSynSent<T> {
+    fn send_forward<F, R>(self, f: F) -> (TcpState<T>, Result<R>)
     where
         F: FnOnce(Packet) -> Result<R>,
     {
@@ -107,7 +106,7 @@ impl<'a, T: Env> Tcp<'a, T> for TcpSynSent<'a, T> {
         }
     }
 
-    fn recv_forward(self, packet: &Packet) -> (TcpState<'a, T>, Result<()>) {
+    fn recv_forward(self, packet: &Packet) -> (TcpState<T>, Result<()>) {
         let &(ipv4_repr, tcp_repr, _) = match *packet {
             Packet::Tcp(ref packet) => packet,
             _ => return (self.into(), Err(Error::NoOp)),
@@ -141,16 +140,16 @@ impl<'a, T: Env> Tcp<'a, T> for TcpSynSent<'a, T> {
     }
 }
 
-impl<'a, T: Env> TcpSynSent<'a, T> {
+impl<T: TimeEnv> TcpSynSent<T> {
     /// Transitions from SYN_SENT to CLOSED in response to a RST + ACK.
-    pub fn to_closed(self) -> TcpClosed<'a, T> {
+    pub fn to_closed(self) -> TcpClosed<T> {
         TcpClosed {
             context: self.context,
         }
     }
 
     /// Transitions from SYN_SENT to ESTABLISHED in response to a SYN + ACK.
-    pub fn to_established(self, ack_num: u32) -> TcpEstablished<'a, T> {
+    pub fn to_established(self, ack_num: u32) -> TcpEstablished<T> {
         TcpEstablished {
             connected_to: self.connecting_to,
             ack_num: ack_num + 1,

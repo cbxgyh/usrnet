@@ -2,46 +2,35 @@ use {
     Error,
     Result,
 };
-use core::storage::Slice;
 
 /// Ring/bounded buffer of T's.
-#[derive(Debug)]
-pub struct Ring<'a, T: 'a> {
-    buffer: Slice<'a, T>,
+#[derive(Clone, Debug)]
+pub struct Ring<T> {
+    buffer: Vec<T>,
     begin: usize,
     len: usize,
 }
 
-impl<'a, T> From<&'a mut [T]> for Ring<'a, T> {
-    fn from(slice: &'a mut [T]) -> Ring<'a, T> {
+impl<T> From<Vec<T>> for Ring<T> {
+    fn from(buffer: Vec<T>) -> Ring<T> {
         Ring {
-            buffer: Slice::from(slice),
+            buffer,
             begin: 0,
             len: 0,
         }
     }
 }
 
-impl<'a, T> From<Vec<T>> for Ring<'a, T> {
-    fn from(vec: Vec<T>) -> Ring<'a, T> {
-        Ring {
-            buffer: Slice::from(vec),
-            begin: 0,
-            len: 0,
-        }
-    }
-}
-
-impl<'a, T> Ring<'a, T> {
+impl<T> Ring<T> {
     /// Applies f on the head of the buffer or returns an error if the buffer
     /// is empty. Dequeue's the element f was applied on.
     ///
     /// # Returns
     ///
     /// An error or the result of f.
-    pub fn dequeue_with<'b, F, R>(&'b mut self, f: F) -> Result<R>
+    pub fn dequeue_with<'a, F, R>(&'a mut self, f: F) -> Result<R>
     where
-        F: FnOnce(&'b mut T) -> R,
+        F: FnOnce(&'a mut T) -> R,
     {
         self.dequeue_maybe(|x| Ok(f(x)))
     }
@@ -52,9 +41,9 @@ impl<'a, T> Ring<'a, T> {
     /// # Returns
     ///
     /// An error or the result of f.
-    pub fn dequeue_maybe<'b, F, R>(&'b mut self, f: F) -> Result<R>
+    pub fn dequeue_maybe<'a, F, R>(&'a mut self, f: F) -> Result<R>
     where
-        F: FnOnce(&'b mut T) -> Result<R>,
+        F: FnOnce(&'a mut T) -> Result<R>,
     {
         if self.len == 0 {
             return Err(Error::Exhausted);
@@ -79,9 +68,9 @@ impl<'a, T> Ring<'a, T> {
     /// # Returns
     ///
     /// An error or the result of f.
-    pub fn enqueue_with<'b, F, R>(&'b mut self, f: F) -> Result<R>
+    pub fn enqueue_with<'a, F, R>(&'a mut self, f: F) -> Result<R>
     where
-        F: FnOnce(&'b mut T) -> R,
+        F: FnOnce(&'a mut T) -> R,
     {
         self.enqueue_maybe(|x| Ok(f(x)))
     }
@@ -92,9 +81,9 @@ impl<'a, T> Ring<'a, T> {
     /// # Returns
     ///
     /// An error or the result of f.
-    pub fn enqueue_maybe<'b, F, R>(&'b mut self, f: F) -> Result<R>
+    pub fn enqueue_maybe<'a, F, R>(&'a mut self, f: F) -> Result<R>
     where
-        F: FnOnce(&'b mut T) -> Result<R>,
+        F: FnOnce(&'a mut T) -> Result<R>,
     {
         if self.len == self.buffer.len() {
             return Err(Error::Exhausted);

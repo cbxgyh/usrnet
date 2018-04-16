@@ -1,14 +1,14 @@
-mod state;
+pub mod state;
 
 use Result;
 use core::socket::{
-    AddrLease,
     Packet,
     Socket,
     SocketAddr,
+    SocketAddrLease,
 };
 use core::time::{
-    Env,
+    Env as TimeEnv,
     SystemEnv,
 };
 
@@ -21,13 +21,13 @@ use self::state::{
 
 /// A TCP socket.
 #[derive(Debug)]
-pub struct TcpSocket<'a, T: Env = SystemEnv> {
+pub struct TcpSocket<T: TimeEnv = SystemEnv> {
     // Use an Option to implement consumable states behind a mutable socket
     // abstraction.
-    inner: Option<TcpState<'a, T>>,
+    inner: Option<TcpState<T>>,
 }
 
-impl<'a, T: Env> Socket for TcpSocket<'a, T> {
+impl<T: TimeEnv> Socket for TcpSocket<T> {
     fn send_forward<F, R>(&mut self, f: F) -> Result<R>
     where
         F: FnOnce(Packet) -> Result<R>,
@@ -46,9 +46,9 @@ impl<'a, T: Env> Socket for TcpSocket<'a, T> {
     }
 }
 
-impl<'a, T: Env> TcpSocket<'a, T> {
+impl<T: TimeEnv> TcpSocket<T> {
     /// Creates a new TCP socket.
-    pub fn new(binding: AddrLease<'a>, time_env: T, interface_mtu: usize) -> TcpSocket<'a, T> {
+    pub fn new(binding: SocketAddrLease, time_env: T, interface_mtu: usize) -> TcpSocket<T> {
         let context = TcpContext {
             binding,
             time_env,
@@ -64,10 +64,10 @@ impl<'a, T: Env> TcpSocket<'a, T> {
     /// # Panics
     ///
     /// Causes a panic if the connection is not in the closed state!
-    pub fn connect(&mut self, addr: SocketAddr) {
+    pub fn connect(&mut self, socket_addr: SocketAddr) {
         match self.inner.take() {
             Some(TcpState::Closed(closed)) => {
-                self.inner = Some(TcpState::from(closed.to_syn_sent(addr)))
+                self.inner = Some(TcpState::from(closed.to_syn_sent(socket_addr)))
             }
             _ => panic!("TcpSocket::connect(...) requires a closed socket!"),
         }

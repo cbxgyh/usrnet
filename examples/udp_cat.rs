@@ -11,7 +11,6 @@ use std::thread;
 
 use usrnet::core::repr::Ipv4Address;
 use usrnet::core::socket::{
-    Bindings,
     SocketAddr,
     TaggedSocket,
 };
@@ -40,15 +39,17 @@ fn main() {
     let server_addr = SocketAddr { addr, port };
 
     let mut interface = env::default_interface();
-    let bindings = Bindings::new();
+    let socket_env = env::socket_env(&mut interface);
+    let mut socket_set = env::socket_set();
+
     let socket_addr = SocketAddr {
         addr: *interface.ipv4_addr,
         port: rand::random::<u16>(),
     };
-    let addr_binding = bindings.bind_udp(socket_addr).unwrap();
-    let udp_socket = TaggedSocket::Udp(env::udp_socket(&mut interface, addr_binding));
-    let mut socket_set = env::socket_set();
-    let udp_handle = socket_set.add_socket(udp_socket).unwrap();
+    let udp_socket = socket_env.udp_socket(socket_addr).unwrap();
+    let udp_handle = socket_set
+        .add_socket(TaggedSocket::Udp(udp_socket))
+        .unwrap();
 
     let (send, recv) = mpsc::channel();
 

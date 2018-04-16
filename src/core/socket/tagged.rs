@@ -8,14 +8,14 @@ use core::socket::{
 };
 
 /// One of many types of sockets.
-pub enum TaggedSocket<'a> {
-    Raw(RawSocket<'a>),
-    Udp(UdpSocket<'a>),
-    Tcp(TcpSocket<'a>),
+pub enum TaggedSocket {
+    Raw(RawSocket),
+    Udp(UdpSocket),
+    Tcp(TcpSocket),
     #[doc(hidden)] ___Exhaustive,
 }
 
-impl<'a> Socket for TaggedSocket<'a> {
+impl Socket for TaggedSocket {
     fn send_forward<F, R>(&mut self, f: F) -> Result<R>
     where
         F: FnOnce(Packet) -> Result<R>,
@@ -38,13 +38,13 @@ impl<'a> Socket for TaggedSocket<'a> {
     }
 }
 
-impl<'a> TaggedSocket<'a> {
+impl TaggedSocket {
     /// Returns a reference to the underlying raw socket.
     ///
     /// # Panics
     ///
     /// Panics if the underlying socket is not a raw socket.
-    pub fn as_raw_socket(&mut self) -> &mut RawSocket<'a> {
+    pub fn as_raw_socket(&mut self) -> &mut RawSocket {
         match *self {
             TaggedSocket::Raw(ref mut socket) => socket,
             _ => panic!("Not a raw socket!"),
@@ -56,7 +56,7 @@ impl<'a> TaggedSocket<'a> {
     /// # Panics
     ///
     /// Panics if the underlying socket is not a TCP socket.
-    pub fn as_tcp_socket(&mut self) -> &mut TcpSocket<'a> {
+    pub fn as_tcp_socket(&mut self) -> &mut TcpSocket {
         match *self {
             TaggedSocket::Tcp(ref mut socket) => socket,
             _ => panic!("Not a TCP socket!"),
@@ -68,7 +68,7 @@ impl<'a> TaggedSocket<'a> {
     /// # Panics
     ///
     /// Panics if the underlying socket is not a UDP socket.
-    pub fn as_udp_socket(&mut self) -> &mut UdpSocket<'a> {
+    pub fn as_udp_socket(&mut self) -> &mut UdpSocket {
         match *self {
             TaggedSocket::Udp(ref mut socket) => socket,
             _ => panic!("Not a UDP socket!"),

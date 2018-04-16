@@ -13,14 +13,10 @@ use std::sync::mpsc;
 use std::thread;
 
 use usrnet::core::socket::{
-    Bindings,
     SocketAddr,
     TaggedSocket,
 };
-use usrnet::examples::{
-    env,
-    udp_echo as _udp_echo,
-};
+use usrnet::examples::udp_echo as _udp_echo;
 
 pub const PAYLOAD_SIZE: usize = 128;
 
@@ -70,18 +66,23 @@ fn udp_echo() {
             });
         }
 
-        let bindings = Bindings::new();
-        let addr_binding = bindings.bind_udp(server_addr).unwrap();
-        let udp_socket = TaggedSocket::Udp(env::udp_socket(&mut context.interface, addr_binding));
-        let mut socket_set = env::socket_set();
-        let udp_handle = socket_set.add_socket(udp_socket).unwrap();
+        let udp_socket = context.socket_env.udp_socket(server_addr).unwrap();
+        let udp_handle = context
+            .socket_set
+            .add_socket(TaggedSocket::Udp(udp_socket))
+            .unwrap();
 
         let mut waiting = CONCURRENT_CLIENTS;
-        _udp_echo(&mut context.interface, &mut socket_set, udp_handle, || {
-            while let Ok(_) = recv.try_recv() {
-                waiting -= 1;
-            }
-            waiting > 0
-        });
+        _udp_echo(
+            &mut context.interface,
+            &mut context.socket_set,
+            udp_handle,
+            || {
+                while let Ok(_) = recv.try_recv() {
+                    waiting -= 1;
+                }
+                waiting > 0
+            },
+        );
     });
 }

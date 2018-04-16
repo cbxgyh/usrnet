@@ -14,7 +14,6 @@ use std::thread;
 
 use usrnet::core::repr::Ipv4Address;
 use usrnet::core::socket::{
-    Bindings,
     SocketAddr,
     TaggedSocket,
 };
@@ -64,27 +63,29 @@ fn tcp_active_open(context: &mut context::Context, with_server: bool) {
     };
 
     // Create a TcpSocket.
-    let bindings = Bindings::new();
-    let addr_binding = bindings.bind_tcp(client_addr).unwrap();
-    let tcp_socket = TaggedSocket::Tcp(env::tcp_socket(&mut context.interface, addr_binding));
-    let mut socket_set = env::socket_set();
-    let tcp_handle = socket_set.add_socket(tcp_socket).unwrap();
+    let tcp_socket = context.socket_env.tcp_socket(client_addr).unwrap();
+    let tcp_handle = context
+        .socket_set
+        .add_socket(TaggedSocket::Tcp(tcp_socket))
+        .unwrap();
 
-    socket_set
+    context
+        .socket_set
         .socket(tcp_handle)
         .as_tcp_socket()
         .connect(connect_addr);
 
-    while socket_set
+    while context
+        .socket_set
         .socket(tcp_handle)
         .as_tcp_socket()
         .is_establishing()
     {
-        env::tick(&mut context.interface, &mut socket_set);
+        env::tick(&mut context.interface, &mut context.socket_set);
     }
 
     // Check the socket status depending on if we started a server or not.
-    let tcp_socket = socket_set.socket(tcp_handle).as_tcp_socket();
+    let tcp_socket = context.socket_set.socket(tcp_handle).as_tcp_socket();
     match server {
         Some(server) => {
             assert!(tcp_socket.is_connected());

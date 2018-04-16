@@ -1,13 +1,13 @@
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::{
-    Debug,
     Display,
     Formatter,
     Result as FmtResult,
 };
 use std::net::SocketAddrV4;
 use std::ops::Deref;
+use std::rc::Rc;
 
 use {
     Error,
@@ -16,10 +16,16 @@ use {
 use core::repr::Ipv4Address;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-/// An IPv4 + port binding for TCP, UDP, etc. sockets.
+/// An IPv4 + port socket address.
 pub struct SocketAddr {
     pub addr: Ipv4Address,
     pub port: u16,
+}
+
+impl Display for SocketAddr {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        write!(f, "{}:{}", self.addr, self.port)
+    }
 }
 
 impl<'a> From<&'a SocketAddrV4> for SocketAddr {
@@ -37,32 +43,22 @@ impl Into<SocketAddrV4> for SocketAddr {
     }
 }
 
-impl Display for SocketAddr {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        write!(f, "{}:{}", self.addr, self.port)
-    }
-}
-
+/// A socket address corresponding to different socket types.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 enum TaggedSocketAddr {
     Udp(SocketAddr),
     Tcp(SocketAddr),
 }
 
-/// Represents a borrow of a socket address to ensure sockets are binded to
-/// unique addresses.
-pub struct AddrLease<'a> {
+/// A socket address which has been reserved, and is freed for reallocation by
+/// the owning Bindings instance once dropped.
+#[derive(Debug, Eq, PartialEq)]
+pub struct SocketAddrLease {
     addr: TaggedSocketAddr,
-    owner: &'a Bindings,
+    socket_addrs: Rc<RefCell<HashSet<TaggedSocketAddr>>>,
 }
 
-impl<'a> Debug for AddrLease<'a> {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        write!(f, "{:?}", self.addr)
-    }
-}
-
-impl<'a> Deref for AddrLease<'a> {
+impl Deref for SocketAddrLease {
     type Target = SocketAddr;
 
     fn deref(&self) -> &SocketAddr {
@@ -73,43 +69,43 @@ impl<'a> Deref for AddrLease<'a> {
     }
 }
 
-impl<'a> Drop for AddrLease<'a> {
+impl Drop for SocketAddrLease {
     fn drop(&mut self) {
-        self.owner.bindings.borrow_mut().remove(&self.addr);
+        self.socket_addrs.borrow_mut().remove(&self.addr);
     }
 }
 
-/// A set of socket bindings.
+/// An allocator for socket address leases.
 #[derive(Debug)]
 pub struct Bindings {
-    bindings: RefCell<HashSet<TaggedSocketAddr>>,
+    socket_addrs: Rc<RefCell<HashSet<TaggedSocketAddr>>>,
 }
 
 impl Bindings {
     /// Creates a set of socket bindings.
     pub fn new() -> Bindings {
         Bindings {
-            bindings: RefCell::new(HashSet::new()),
+            socket_addrs: Rc::new(RefCell::new(HashSet::new())),
         }
     }
 
-    /// Tries to reserve the specified UDP binding returning an Error::InUse
-    /// if the binding is already in use.
-    pub fn bind_udp(&self, udp_binding: SocketAddr) -> Result<AddrLease> {
-        self.bind(TaggedSocketAddr::Udp(udp_binding))
+    /// Tries to reserve the specified UDP socket address, returning an Error::InUse
+    /// if the socket address is already in use.
+    pub fn bind_udp(&self, socket_addr: SocketAddr) -> Result<SocketAddrLease> {
+        self.bind(TaggedSocketAddr::Udp(socket_addr))
     }
 
-    /// Tries to reserve the specified TCP binding returning an Error::InUse
-    /// if the binding is already in use.
-    pub fn bind_tcp(&self, tcp_binding: SocketAddr) -> Result<AddrLease> {
-        self.bind(TaggedSocketAddr::Tcp(tcp_binding))
+    /// Tries to reserve the specified TCP socket address, returning an Error::InUse
+    /// if the socket address is already in use.
+    pub fn bind_tcp(&self, socket_addr: SocketAddr) -> Result<SocketAddrLease> {
+        self.bind(TaggedSocketAddr::Tcp(socket_addr))
     }
 
-    fn bind(&self, binding: TaggedSocketAddr) -> Result<AddrLease> {
-        if self.bindings.borrow_mut().insert(binding.clone()) {
-            Ok(AddrLease {
-                addr: binding,
-                owner: self,
+    fn bind(&self, socket_addr: TaggedSocketAddr) -> Result<SocketAddrLease> {
+        if self.socket_addrs.borrow_mut().insert(socket_addr.clone()) {
+            Ok(SocketAddrLease {
+                addr: socket_addr,
+                socket_addrs: self.socket_addrs.clone(),
             })
         } else {
             Err(Error::InUse)
@@ -126,21 +122,21 @@ mod tests {
     #[test]
     fn test_bind_udp_ok() {
         let bindings = Bindings::new();
-        let udp_binding = SocketAddr {
+        let socket_addr = SocketAddr {
             addr: Ipv4Address::new([0, 1, 2, 3]),
             port: 1024,
         };
-        assert_eq!(*bindings.bind_udp(udp_binding).unwrap(), udp_binding);
+        assert_eq!(*bindings.bind_udp(socket_addr).unwrap(), socket_addr);
     }
 
     #[test]
     fn test_bind_udp_err() {
         let bindings = Bindings::new();
-        let udp_binding = SocketAddr {
+        let socket_addr = SocketAddr {
             addr: Ipv4Address::new([0, 1, 2, 3]),
             port: 1024,
         };
-        let _udp_lease = bindings.bind_udp(udp_binding).unwrap();
-        assert_matches!(bindings.bind_udp(udp_binding), Err(Error::InUse));
+        let _addr_lease = bindings.bind_udp(socket_addr).unwrap();
+        assert_matches!(bindings.bind_udp(socket_addr), Err(Error::InUse));
     }
 }

@@ -8,73 +8,51 @@ use {
     Result,
 };
 
-/// Represents ownership of a T's buffer. Based on ideas from
-/// [https://github.com/m-labs/rust-managed](https://github.com/m-labs/rust-managed).
-#[derive(Debug)]
-pub enum Slice<'a, T: 'a> {
-    Borrow(&'a mut [T], usize),
-    Owned(Vec<T>),
+/// Owned slice which acts a resizable view over a non-resizable buffer.
+#[derive(Clone, Debug)]
+pub struct Slice<T> {
+    buffer: Vec<T>,
+    len: usize,
 }
 
-impl<'a, T> From<&'a mut [T]> for Slice<'a, T> {
-    fn from(slice: &'a mut [T]) -> Self {
-        let len = slice.len();
-        Slice::Borrow(slice, len)
+impl<T> From<Vec<T>> for Slice<T> {
+    fn from(buffer: Vec<T>) -> Self {
+        let len = buffer.len();
+        Slice { buffer, len }
     }
 }
 
-impl<'a, T> From<Vec<T>> for Slice<'a, T> {
-    fn from(vec: Vec<T>) -> Self {
-        Slice::Owned(vec)
-    }
-}
-
-impl<'a, T> Deref for Slice<'a, T> {
+impl<T> Deref for Slice<T> {
     type Target = [T];
 
     fn deref(&self) -> &[T] {
-        match *self {
-            Slice::Borrow(ref slice, len) => &slice[.. len],
-            Slice::Owned(ref vec) => vec.as_slice(),
-        }
+        &self.buffer[0 .. self.len]
     }
 }
 
-impl<'a, T> DerefMut for Slice<'a, T> {
+impl<T> DerefMut for Slice<T> {
     fn deref_mut(&mut self) -> &mut [T] {
-        match *self {
-            Slice::Borrow(ref mut slice, len) => &mut slice[.. len],
-            Slice::Owned(ref mut vec) => vec.as_mut_slice(),
-        }
+        &mut self.buffer[0 .. self.len]
     }
 }
 
-impl<'a, T: Clone> Slice<'a, T> {
-    /// Attempts to resize the the slice, filling additional slots with value.
+impl<T: Clone> Slice<T> {
+    /// Attempts to resize the slice, assigning fresh values to the tail end
+    /// of the buffer in an upsizing operation.
     ///
     /// # Errors
     ///
-    /// Returns an error if the underlying slice does not have sufficient
-    /// capacity.
+    /// Returns Error::Exhausted if the underlying buffer does not have
+    /// sufficient capacity.
     pub fn try_resize(&mut self, buffer_len: usize, value: T) -> Result<()> {
-        match *self {
-            Slice::Borrow(ref mut slice, ref mut len) => {
-                if slice.len() < buffer_len {
-                    Err(Error::Exhausted)
-                } else {
-                    let mut i = *len;
-                    while i < buffer_len {
-                        slice[i] = value.clone();
-                        i += 1;
-                    }
-                    *len = buffer_len;
-                    Ok(())
-                }
+        if buffer_len > self.buffer.len() {
+            Err(Error::Exhausted)
+        } else {
+            for i in self.len .. buffer_len {
+                self.buffer[i] = value.clone();
             }
-            Slice::Owned(ref mut vec) => {
-                vec.resize(buffer_len, value);
-                Ok(())
-            }
+            self.len = buffer_len;
+            Ok(())
         }
     }
 }
@@ -84,30 +62,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_resize_owned() {
+    fn test_resize_too_big() {
         let mut slice = Slice::from(vec![0, 1, 2, 3]);
-        assert_eq!(&slice[..], &[0, 1, 2, 3]);
-        assert_matches!(slice.try_resize(8, 0), Ok(()));
-        assert_eq!(&slice[..], &[0, 1, 2, 3, 0, 0, 0, 0]);
-    }
-
-    #[test]
-    fn test_resize_borrowed_too_big() {
-        let mut buffer = [0, 1, 2, 3];
-        let mut slice = Slice::from(&mut buffer[..]);
         assert_eq!(&slice[..], &[0, 1, 2, 3]);
         assert_matches!(slice.try_resize(8, 0), Err(Error::Exhausted));
         assert_eq!(&slice[..], &[0, 1, 2, 3]);
     }
 
     #[test]
-    fn test_resize_borrowed_with_capacity() {
-        let mut buffer = [0, 1, 2, 3, 4, 5, 6, 7];
-        let mut slice = Slice::from(&mut buffer[..]);
-        assert_eq!(&slice[..], &[0, 1, 2, 3, 4, 5, 6, 7]);
-        assert_matches!(slice.try_resize(4, 0), Ok(()));
+    fn test_resize_with_capacity() {
+        let mut slice = Slice::from(vec![0, 1, 2, 3]);
         assert_eq!(&slice[..], &[0, 1, 2, 3]);
-        assert_matches!(slice.try_resize(8, 0), Ok(()));
-        assert_eq!(&slice[..], &[0, 1, 2, 3, 0, 0, 0, 0]);
+        assert_matches!(slice.try_resize(0, 0), Ok(_));
+        assert_eq!(&slice[..], &[]);
+        assert_matches!(slice.try_resize(1, 0), Ok(_));
+        assert_eq!(&slice[..], &[0]);
+        assert_matches!(slice.try_resize(2, 0), Ok(_));
+        assert_eq!(&slice[..], &[0, 0]);
+        assert_matches!(slice.try_resize(3, 0), Ok(_));
+        assert_eq!(&slice[..], &[0, 0, 0]);
+        assert_matches!(slice.try_resize(4, 0), Ok(_));
+        assert_eq!(&slice[..], &[0, 0, 0, 0]);
     }
 }

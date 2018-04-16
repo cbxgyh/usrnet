@@ -4,13 +4,13 @@ use std::fmt::Debug;
 use std::time::Instant;
 
 /// An environment that provides the current time.
-pub trait Env: Debug {
+pub trait Env: Clone + Debug {
     /// Returns an instance corresponding to "now".
     fn now_instant(&self) -> Instant;
 }
 
 /// An environment that provides system based time.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SystemEnv;
 
 impl SystemEnv {
@@ -26,7 +26,7 @@ impl Env for SystemEnv {
 }
 
 /// An environment that provides a configurable time.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct MockEnv {
     pub now: Instant,
 }

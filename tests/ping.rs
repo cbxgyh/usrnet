@@ -20,8 +20,11 @@ use usrnet::core::socket::{
 use usrnet::examples::*;
 
 fn ping_addr(context: &mut context::Context, addr: Ipv4Address) -> Option<Duration> {
-    let raw_socket = TaggedSocket::Raw(env::raw_socket(&mut context.interface, RawType::Ipv4));
-    let raw_handle = context.socket_set.add_socket(raw_socket).unwrap();
+    let raw_socket = context.socket_env.raw_socket(RawType::Ipv4);
+    let raw_handle = context
+        .socket_set
+        .add_socket(TaggedSocket::Raw(raw_socket))
+        .unwrap();
 
     let mut payload = [0; 64];
     for i in 0 .. payload.len() {

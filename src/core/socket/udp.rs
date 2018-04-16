@@ -9,10 +9,10 @@ use core::repr::{
     UdpRepr,
 };
 use core::socket::{
-    AddrLease,
     Packet,
     Socket,
     SocketAddr,
+    SocketAddrLease,
 };
 use core::storage::{
     Ring,
@@ -20,13 +20,13 @@ use core::storage::{
 };
 
 /// A UDP socket.
-pub struct UdpSocket<'a> {
-    binding: AddrLease<'a>,
-    send_buffer: Ring<'a, (Slice<'a, u8>, SocketAddr)>,
-    recv_buffer: Ring<'a, (Slice<'a, u8>, SocketAddr)>,
+pub struct UdpSocket {
+    binding: SocketAddrLease,
+    send_buffer: Ring<(Slice<u8>, SocketAddr)>,
+    recv_buffer: Ring<(Slice<u8>, SocketAddr)>,
 }
 
-impl<'a> Socket for UdpSocket<'a> {
+impl Socket for UdpSocket {
     fn send_forward<F, R>(&mut self, f: F) -> Result<R>
     where
         F: FnOnce(Packet) -> Result<R>,
@@ -76,15 +76,15 @@ impl<'a> Socket for UdpSocket<'a> {
     }
 }
 
-impl<'a> UdpSocket<'a> {
+impl UdpSocket {
     /// Creates a new UDP socket.
     pub fn new(
-        binding: AddrLease<'a>,
-        send_buffer: Ring<'a, (Slice<'a, u8>, SocketAddr)>,
-        recv_buffer: Ring<'a, (Slice<'a, u8>, SocketAddr)>,
-    ) -> UdpSocket<'a> {
+        binding: SocketAddrLease,
+        send_buffer: Ring<(Slice<u8>, SocketAddr)>,
+        recv_buffer: Ring<(Slice<u8>, SocketAddr)>,
+    ) -> UdpSocket {
         UdpSocket {
-            binding: binding,
+            binding,
             send_buffer,
             recv_buffer,
         }

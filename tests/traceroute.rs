@@ -25,8 +25,11 @@ fn traceroute_addr<F>(context: &mut context::Context, addr: Ipv4Address, f: F) -
 where
     F: FnMut(u8, Option<(Duration, Ipv4Address)>),
 {
-    let raw_socket = TaggedSocket::Raw(env::raw_socket(&mut context.interface, RawType::Ipv4));
-    let raw_handle = context.socket_set.add_socket(raw_socket).unwrap();
+    let raw_socket = context.socket_env.raw_socket(RawType::Ipv4);
+    let raw_handle = context
+        .socket_set
+        .add_socket(TaggedSocket::Raw(raw_socket))
+        .unwrap();
 
     traceroute(
         &mut context.interface,

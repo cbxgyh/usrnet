@@ -8,7 +8,6 @@ use std::str::FromStr;
 
 use usrnet::core::repr::Ipv4Address;
 use usrnet::core::socket::{
-    Bindings,
     SocketAddr,
     TaggedSocket,
 };
@@ -37,15 +36,17 @@ fn main() {
     let server_addr = SocketAddr { addr, port };
 
     let mut interface = env::default_interface();
-    let bindings = Bindings::new();
+    let socket_env = env::socket_env(&mut interface);
+    let mut socket_set = env::socket_set();
+
     let socket_addr = SocketAddr {
         addr: *interface.ipv4_addr,
         port: rand::random::<u16>(),
     };
-    let addr_binding = bindings.bind_tcp(socket_addr).unwrap();
-    let tcp_socket = TaggedSocket::Tcp(env::tcp_socket(&mut interface, addr_binding));
-    let mut socket_set = env::socket_set();
-    let tcp_handle = socket_set.add_socket(tcp_socket).unwrap();
+    let tcp_socket = socket_env.tcp_socket(socket_addr).unwrap();
+    let tcp_handle = socket_set
+        .add_socket(TaggedSocket::Tcp(tcp_socket))
+        .unwrap();
 
     println!(
         "Connecting to {}; \

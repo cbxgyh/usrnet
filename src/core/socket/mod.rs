@@ -4,6 +4,7 @@
 //! receiving data between network endpoints.
 
 pub mod bindings;
+pub mod env;
 pub mod raw;
 pub mod set;
 pub mod socket;
@@ -12,10 +13,11 @@ pub mod tcp;
 pub mod udp;
 
 pub use self::bindings::{
-    AddrLease,
     Bindings,
     SocketAddr,
+    SocketAddrLease,
 };
+pub use self::env::SocketEnv;
 pub use self::raw::{
     RawSocket,
     RawType,

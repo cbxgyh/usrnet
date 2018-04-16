@@ -19,13 +19,13 @@ pub enum RawType {
 
 /// Socket for sending and receiving raw ethernet or IP packets.
 #[derive(Debug)]
-pub struct RawSocket<'a> {
+pub struct RawSocket {
     raw_type: RawType,
-    send_buffer: Ring<'a, Slice<'a, u8>>,
-    recv_buffer: Ring<'a, Slice<'a, u8>>,
+    send_buffer: Ring<Slice<u8>>,
+    recv_buffer: Ring<Slice<u8>>,
 }
 
-impl<'a> Socket for RawSocket<'a> {
+impl Socket for RawSocket {
     fn send_forward<F, R>(&mut self, f: F) -> Result<R>
     where
         F: FnOnce(Packet) -> Result<R>,
@@ -71,13 +71,13 @@ impl<'a> Socket for RawSocket<'a> {
     }
 }
 
-impl<'a> RawSocket<'a> {
+impl RawSocket {
     /// Creates a socket with the provided send and receive buffers.
     pub fn new(
         raw_type: RawType,
-        send_buffer: Ring<'a, Slice<'a, u8>>,
-        recv_buffer: Ring<'a, Slice<'a, u8>>,
-    ) -> RawSocket<'a> {
+        send_buffer: Ring<Slice<u8>>,
+        recv_buffer: Ring<Slice<u8>>,
+    ) -> RawSocket {
         RawSocket {
             raw_type,
             send_buffer,

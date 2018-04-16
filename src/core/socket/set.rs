@@ -6,21 +6,22 @@ use {
     Result,
 };
 use core::socket::TaggedSocket;
-use core::storage::Slice;
 
-/// A set of sockets with integral handles...
-pub struct SocketSet<'a, 'b: 'a> {
-    sockets: Slice<'a, Option<TaggedSocket<'b>>>,
+/// A set of sockets with stable integral handles.
+pub struct SocketSet {
+    sockets: Vec<Option<TaggedSocket>>,
 }
 
-impl<'a, 'b> SocketSet<'a, 'b> {
-    /// Creates a socket set.
-    pub fn new(sockets: Slice<'a, Option<TaggedSocket<'b>>>) -> SocketSet<'a, 'b> {
-        SocketSet { sockets: sockets }
+impl SocketSet {
+    /// Creates a socket set supporting a maximum number of sockets.
+    pub fn new(socket_capacity: usize) -> SocketSet {
+        SocketSet {
+            sockets: (0 .. socket_capacity).map(|_| None).collect(),
+        }
     }
 
     /// Adds a socket and returns a stable handle.
-    pub fn add_socket(&mut self, socket: TaggedSocket<'b>) -> Result<usize> {
+    pub fn add_socket(&mut self, socket: TaggedSocket) -> Result<usize> {
         let handle = {
             (0 .. self.sockets.len())
                 .filter(|i| self.sockets[*i].is_none())
@@ -38,7 +39,7 @@ impl<'a, 'b> SocketSet<'a, 'b> {
 
     /// Returns a reference to a socket with the specified handle. Causes a panic
     /// if the handle is not in use.
-    pub fn socket(&mut self, socket_handle: usize) -> &mut TaggedSocket<'b> {
+    pub fn socket(&mut self, socket_handle: usize) -> &mut TaggedSocket {
         if socket_handle >= self.sockets.len() {
             panic!("Socket handle is not in use.")
         } else {
@@ -50,21 +51,21 @@ impl<'a, 'b> SocketSet<'a, 'b> {
     }
 
     /// Returns an iterator over all of the sockets in the set.
-    pub fn iter_mut<'c>(&'c mut self) -> SocketIter<'c, 'b> {
+    pub fn iter_mut<'a>(&'a mut self) -> SocketIter<'a> {
         SocketIter {
             slice_iter: self.sockets.iter_mut(),
         }
     }
 }
 
-pub struct SocketIter<'a, 'b: 'a> {
-    slice_iter: SliceIterMut<'a, Option<TaggedSocket<'b>>>,
+pub struct SocketIter<'a> {
+    slice_iter: SliceIterMut<'a, Option<TaggedSocket>>,
 }
 
-impl<'a, 'b, 'c> Iterator for SocketIter<'a, 'b> {
-    type Item = &'a mut TaggedSocket<'b>;
+impl<'a> Iterator for SocketIter<'a> {
+    type Item = &'a mut TaggedSocket;
 
-    fn next(&mut self) -> Option<&'a mut TaggedSocket<'b>> {
+    fn next(&mut self) -> Option<&'a mut TaggedSocket> {
         while let Some(socket_option) = self.slice_iter.next() {
             if let Some(ref mut socket) = *socket_option {
                 return Some(socket);

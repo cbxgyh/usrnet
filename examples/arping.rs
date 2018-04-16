@@ -36,9 +36,13 @@ fn main() {
         .expect("Bad timeout!");
 
     let mut interface = env::default_interface();
+    let socket_env = env::socket_env(&mut interface);
     let mut socket_set = env::socket_set();
-    let raw_socket = TaggedSocket::Raw(env::raw_socket(&mut interface, RawType::Ethernet));
-    let raw_handle = socket_set.add_socket(raw_socket).unwrap();
+
+    let raw_socket = socket_env.raw_socket(RawType::Ethernet);
+    let raw_handle = socket_set
+        .add_socket(TaggedSocket::Raw(raw_socket))
+        .unwrap();
 
     println!("ARPING {}.", arping_addr);
 

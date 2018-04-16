@@ -21,8 +21,11 @@ fn arping_addr(
     context: &mut context::Context,
     addr: Ipv4Address,
 ) -> Option<(Duration, EthernetAddress)> {
-    let raw_socket = TaggedSocket::Raw(env::raw_socket(&mut context.interface, RawType::Ethernet));
-    let raw_handle = context.socket_set.add_socket(raw_socket).unwrap();
+    let raw_socket = context.socket_env.raw_socket(RawType::Ethernet);
+    let raw_handle = context
+        .socket_set
+        .add_socket(TaggedSocket::Raw(raw_socket))
+        .unwrap();
 
     arping(
         &mut context.interface,

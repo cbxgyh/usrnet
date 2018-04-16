@@ -6,41 +6,24 @@ use std::net::{
 use get_if_addrs;
 
 use core::arp_cache::ArpCache;
+use core::dev::Device;
 use core::repr::{
     EthernetAddress,
-    EthernetFrame,
     Ipv4Address,
     Ipv4AddressCidr,
-    Ipv4Packet,
-    UdpPacket,
 };
 use core::service::{
     socket,
     Interface,
 };
 use core::socket::{
-    AddrLease,
-    RawSocket,
-    RawType,
-    SocketAddr,
+    SocketEnv,
     SocketSet,
-    TcpSocket,
-    UdpSocket,
-};
-use core::storage::{
-    Ring,
-    Slice,
 };
 use core::time::SystemEnv;
 
-/// Default number of handles a socket set has capacity for.
-pub static SOCKET_SET_HANDLES: usize = 16;
-
-/// Default number of packets a raw socket can buffer.
-pub static RAW_SOCKET_BUFFER_LEN: usize = 128;
-
-/// Default number of packets a UDP socket can buffer.
-pub static UDP_SOCKET_BUFFER_LEN: usize = 128;
+/// Default capacity of a socket set.
+pub static SOCKET_SET_HANDLES: usize = 64;
 
 lazy_static! {
     /// Default interface IPv4 address.
@@ -71,25 +54,15 @@ lazy_static! {
 }
 
 #[cfg(target_os = "linux")]
-mod platform {
-    use core::dev::Device;
+pub fn default_dev() -> Box<Device> {
     use linux::dev::Tap;
-
-    pub fn default_dev() -> Box<Device> {
-        Box::new(Tap::new("tap0"))
-    }
+    Box::new(Tap::new("tap0"))
 }
 
 #[cfg(not(target_os = "linux"))]
-mod platform {
-    use core::dev::Device;
-
-    pub fn default_dev() -> Box<Device> {
-        panic!("Sorry, examples are only supported on Linux.");
-    }
+pub fn default_dev() -> Box<Device> {
+    panic!("Sorry, examples are only supported on Linux.");
 }
-
-pub use self::platform::default_dev;
 
 /// Get's the IPv4 address for an interface. See tap.sh for more info.
 pub fn ifr_addr(ifr_name: &str) -> StdIpv4Addr {
@@ -125,71 +98,14 @@ pub fn default_interface() -> Interface {
     interface
 }
 
-/// Creates a ring of len elements using factory function f.
-pub fn ring<'a, F, T>(len: usize, mut f: F) -> Ring<'a, T>
-where
-    F: FnMut() -> T,
-{
-    let items: Vec<_> = (0 .. len).map(|_| f()).collect();
-    Ring::from(items)
+/// Creates a socket environment.
+pub fn socket_env(interface: &mut Interface) -> SocketEnv<SystemEnv> {
+    SocketEnv::new(interface, SystemEnv::new())
 }
 
 /// Creates a socket set.
-pub fn socket_set<'a, 'b: 'a>() -> SocketSet<'a, 'b> {
-    let mut sockets = vec![];
-    for _ in 0 .. SOCKET_SET_HANDLES {
-        sockets.push(None);
-    }
-    SocketSet::new(Slice::from(sockets))
-}
-
-/// Creates a raw socket.
-pub fn raw_socket<'a>(interface: &mut Interface, raw_type: RawType) -> RawSocket<'a> {
-    let header_len = match raw_type {
-        RawType::Ethernet => EthernetFrame::<&[u8]>::HEADER_LEN,
-        RawType::Ipv4 => EthernetFrame::<&[u8]>::HEADER_LEN + Ipv4Packet::<&[u8]>::MIN_HEADER_LEN,
-    };
-
-    let payload_len = interface
-        .dev
-        .max_transmission_unit()
-        .checked_sub(header_len)
-        .unwrap();
-
-    let buffer = || ring(RAW_SOCKET_BUFFER_LEN, || Slice::from(vec![0; payload_len]));
-
-    RawSocket::new(raw_type, buffer(), buffer())
-}
-
-/// Creates a UDP socket.
-pub fn udp_socket<'a>(interface: &mut Interface, binding: AddrLease<'a>) -> UdpSocket<'a> {
-    let addr = SocketAddr {
-        addr: Ipv4Address::new([0, 0, 0, 0]),
-        port: 0,
-    };
-
-    let udp_payload_len = interface
-        .dev
-        .max_transmission_unit()
-        .checked_sub(UdpPacket::<&[u8]>::HEADER_LEN)
-        .unwrap();
-
-    let buffer = || {
-        ring(UDP_SOCKET_BUFFER_LEN, || {
-            (Slice::from(vec![0; udp_payload_len]), addr.clone())
-        })
-    };
-
-    UdpSocket::new(binding, buffer(), buffer())
-}
-
-/// Creates a TCP socket.
-pub fn tcp_socket<'a>(interface: &mut Interface, binding: AddrLease<'a>) -> TcpSocket<'a> {
-    TcpSocket::new(
-        binding,
-        SystemEnv::new(),
-        interface.dev.max_transmission_unit(),
-    )
+pub fn socket_set() -> SocketSet {
+    SocketSet::new(SOCKET_SET_HANDLES)
 }
 
 /// Sends and receives packets from/to sockets and the interface.
