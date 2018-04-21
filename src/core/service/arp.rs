@@ -59,7 +59,7 @@ pub fn recv_packet(interface: &mut Interface, eth_frame: &EthernetFrame<&[u8]>) 
 
             debug!(
                 "Sending ARP reply to {}/{}.",
-                arp_repr.target_proto_addr, arp_repr.target_hw_addr
+                arp_reply.target_proto_addr, arp_reply.target_hw_addr
             );
 
             send_packet(interface, &arp_reply, arp_reply.target_hw_addr)
