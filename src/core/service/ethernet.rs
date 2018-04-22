@@ -46,7 +46,7 @@ pub fn recv_frame(
             "Ignoring ethernet frame with destination {}.",
             eth_frame.dst_addr()
         );
-        return Err(Error::NoOp);
+        return Err(Error::Ignored);
     }
 
     socket_set
@@ -73,7 +73,7 @@ pub fn recv_frame(
         eth_types::IPV4 => ipv4::recv_packet(interface, &eth_frame, socket_set),
         i => {
             debug!("Ignoring ethernet frame with type {}.", i);
-            Err(Error::NoOp)
+            Err(Error::Ignored)
         }
     }
 }

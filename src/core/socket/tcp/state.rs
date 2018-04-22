@@ -38,7 +38,7 @@ pub trait Tcp {
         _tcp_repr: &TcpRepr,
         _payload: &[u8],
     ) -> (Option<TcpState>, Result<()>) {
-        (None, Err(Error::NoOp))
+        (None, Err(Error::Ignored))
     }
 }
 

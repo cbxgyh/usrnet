@@ -26,6 +26,7 @@ pub fn send(interface: &mut Interface, socket_set: &mut SocketSet) {
     // an error for each socket. This implies either (1) all the sockets have been
     // exhausted or (2) the device is busy.
     loop {
+        let sockets = socket_set.count();
         let mut errors = 0;
 
         for socket in socket_set.iter_mut() {
@@ -37,17 +38,23 @@ pub fn send(interface: &mut Interface, socket_set: &mut SocketSet) {
 
             match ok_or_err {
                 Ok(_) => {}
+                Err(Error::Device(err)) => {
+                    debug!(
+                        "Device has encountered an error, probably exhausted {:?}.",
+                        err
+                    );
+                    // Force exit from outer loop.
+                    errors = sockets;
+                    break;
+                }
                 Err(err) => {
-                    // We could make this better by terminating immediately if we specifically
-                    // knew the device was busy. We need to refactor our error handling a bit
-                    // to make this possible.
                     warn!("Error sending packet with {:?}.", err);
                     errors += 1;
                 }
             }
         }
 
-        if errors >= socket_set.count() {
+        if errors >= sockets {
             break;
         }
     }
@@ -106,7 +113,7 @@ pub fn recv(interface: &mut Interface, socket_set: &mut SocketSet) {
     loop {
         let buffer_len = match interface.dev.recv(&mut eth_buffer) {
             Ok(buffer_len) => buffer_len,
-            Err(Error::Exhausted) => break,
+            Err(Error::Device(_)) => break,
             Err(err) => {
                 warn!("Error receiving Ethernet frame with {:?}.", err);
                 break;
@@ -115,8 +122,8 @@ pub fn recv(interface: &mut Interface, socket_set: &mut SocketSet) {
 
         match ethernet::recv_frame(interface, &eth_buffer[.. buffer_len], socket_set) {
             Ok(_) => continue,
-            Err(Error::NoOp) => continue,
-            Err(Error::Address) => continue,
+            Err(Error::Ignored) => continue,
+            Err(Error::MacResolution(_)) => continue,
             Err(err) => warn!("Error processing Ethernet frame with {:?}", err),
         }
     }

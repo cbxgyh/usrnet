@@ -39,11 +39,6 @@ impl<T> DerefMut for Slice<T> {
 impl<T: Clone> Slice<T> {
     /// Attempts to resize the slice, assigning fresh values to the tail end
     /// of the buffer in an upsizing operation.
-    ///
-    /// # Errors
-    ///
-    /// Returns Error::Exhausted if the underlying buffer does not have
-    /// sufficient capacity.
     pub fn try_resize(&mut self, buffer_len: usize, value: T) -> Result<()> {
         if buffer_len > self.buffer.len() {
             Err(Error::Exhausted)

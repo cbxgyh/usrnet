@@ -87,7 +87,7 @@ pub fn recv_packet(
             "Ignoring IPv4 packet with destination {}.",
             ipv4_packet.dst_addr()
         );
-        return Err(Error::NoOp);
+        return Err(Error::Ignored);
     }
 
     // Update ARP cache! This is important for generating IMMEDIATE (not socket
@@ -125,7 +125,7 @@ pub fn recv_packet(
         ipv4_protocols::ICMP => icmpv4::recv_packet(interface, &ipv4_repr, ipv4_packet.payload()),
         i => {
             debug!("Ignoring IPv4 packet with type {}.", i);
-            Err(Error::NoOp)
+            Err(Error::Ignored)
         }
     }
 }

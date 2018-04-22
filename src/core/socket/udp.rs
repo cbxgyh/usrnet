@@ -108,7 +108,7 @@ impl UdpSocket {
         self.recv_buffer
             .enqueue_maybe(|&mut (ref mut buffer, ref mut addr)| {
                 if ipv4_repr.dst_addr != binding.addr || udp_repr.dst_port != binding.port {
-                    Err(Error::NoOp)
+                    Err(Error::Ignored)
                 } else {
                     buffer.try_resize(payload.len(), 0)?;
                     buffer.copy_from_slice(payload);

@@ -106,10 +106,10 @@ impl Tcp for TcpSynSent {
             || ipv4_repr.src_addr != self.connecting_to.addr
             || tcp_repr.src_port != self.connecting_to.port
         {
-            return (None, Err(Error::NoOp));
+            return (None, Err(Error::Ignored));
         } else if !tcp_repr.flags[TcpRepr::FLAG_ACK] || tcp_repr.ack_num != self.seq_num + 1 {
             // TODO: Handle simulatenous open which will not have an ACK flag, only SYN.
-            return (None, Err(Error::NoOp));
+            return (None, Err(Error::Ignored));
         } else if tcp_repr.flags[TcpRepr::FLAG_RST] {
             debug!("TCP socket {:?} received RST, transition to CLOSED.", self);
             return (Some(TcpState::Closed(self.to_closed())), Ok(()));
@@ -124,7 +124,7 @@ impl Tcp for TcpSynSent {
             );
         }
 
-        (None, Err(Error::NoOp))
+        (None, Err(Error::Ignored))
     }
 }
 

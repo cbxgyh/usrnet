@@ -40,7 +40,7 @@ pub fn recv_packet(interface: &mut Interface, eth_frame: &EthernetFrame<&[u8]>) 
             "Ignoring ARP with target IPv4 address {}.",
             arp_repr.target_proto_addr
         );
-        return Err(Error::NoOp);
+        return Err(Error::Ignored);
     }
 
     debug!(
@@ -94,7 +94,7 @@ pub fn eth_addr_for_ip(
 
             debug!("Sending ARP request for {}.", ipv4_addr);
             send_packet(interface, &arp_repr, EthernetAddress::BROADCAST)?;
-            Err(Error::Address)
+            Err(Error::MacResolution(ipv4_addr))
         }
     }
 }

@@ -62,7 +62,7 @@ pub fn recv_packet(
                 },
             )
         }
-        _ => return Err(Error::NoOp),
+        _ => return Err(Error::Ignored),
     };
 
     send_packet(interface, &ipv4_send_repr, &icmp_send_repr, |payload| {

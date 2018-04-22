@@ -85,9 +85,9 @@ impl Device for Tap {
             );
 
             if wrote < 0 && _libc::errno() == libc::EAGAIN {
-                return Err(Error::Exhausted);
+                Err(Error::Device(None))
             } else if wrote < 0 {
-                Err(Error::IO(IOError::last_os_error()))
+                Err(Error::Device(Some(IOError::last_os_error())))
             } else {
                 Ok(())
             }
@@ -103,9 +103,9 @@ impl Device for Tap {
             );
 
             if read < 0 && _libc::errno() == libc::EAGAIN {
-                return Err(Error::Exhausted);
+                Err(Error::Device(None))
             } else if read < 0 {
-                Err(Error::IO(IOError::last_os_error()))
+                Err(Error::Device(Some(IOError::last_os_error())))
             } else {
                 Ok(read as usize)
             }

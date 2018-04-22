@@ -75,7 +75,7 @@ pub fn ping(
                     || ipv4_packet.src_addr() != ping_addr
                     || ipv4_packet.dst_addr() != *interface.ipv4_addr
                 {
-                    return Err(Error::NoOp);
+                    return Err(Error::Ignored);
                 }
 
                 let icmp_packet = Icmpv4Packet::try_new(ipv4_packet.payload())?;
@@ -90,10 +90,10 @@ pub fn ping(
                         if id_reply == id && seq_reply == seq && icmp_packet.payload() == payload {
                             Ok(())
                         } else {
-                            Err(Error::NoOp)
+                            Err(Error::Ignored)
                         }
                     }
-                    _ => Err(Error::NoOp),
+                    _ => Err(Error::Ignored),
                 }
             }) {
             return Some(waiting);

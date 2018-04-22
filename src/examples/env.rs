@@ -55,7 +55,7 @@ lazy_static! {
 
 #[cfg(target_os = "linux")]
 pub fn default_dev() -> Box<Device> {
-    use linux::dev::Tap;
+    use linux::tap::Tap;
     Box::new(Tap::new("tap0"))
 }
 

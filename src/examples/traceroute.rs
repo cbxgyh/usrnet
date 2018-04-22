@@ -154,7 +154,7 @@ fn recv(
                 if ipv4_packet.protocol() != ipv4_protocols::ICMP
                     || ipv4_packet.dst_addr() != *interface.ipv4_addr
                 {
-                    return Err(Error::NoOp);
+                    return Err(Error::Ignored);
                 }
 
                 let response_addr = ipv4_packet.src_addr();
@@ -173,7 +173,9 @@ fn recv(
                     Icmpv4Message::TimeExceeded(Icmpv4TimeExceeded::TTLExpired) => {
                         Ipv4Packet::try_new(icmp_packet.payload())?
                     }
-                    _ => return Err(Error::NoOp),
+                    _ => {
+                        return Err(Error::Ignored);
+                    }
                 };
 
                 // So I'm not 100% sure about this, but let's check the (1) destination address
@@ -182,7 +184,7 @@ fn recv(
                 if ipv4_packet.dst_addr() != socket_addr.addr
                     || ipv4_packet.protocol() != ipv4_protocols::UDP
                 {
-                    return Err(Error::NoOp);
+                    return Err(Error::Ignored);
                 }
 
                 // We only have a portion of the original IP packet, so let's be careful parsing
@@ -194,7 +196,7 @@ fn recv(
                 // Likewise, let's inspect the destination port only since the source port might
                 // have gotten modified by a NAT.
                 if udp_packet.dst_port() != socket_addr.port {
-                    Err(Error::NoOp)
+                    Err(Error::Ignored)
                 } else {
                     Ok(response_addr)
                 }

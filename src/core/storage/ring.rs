@@ -124,8 +124,8 @@ mod tests {
         ring.enqueue_with(|i| *i = 1).unwrap();
         assert_eq!(ring.len(), 1);
         assert_matches!(
-            ring.dequeue_maybe(|i| if *i == 1 { Err(Error::NoOp) } else { Ok(()) }),
-            Err(Error::NoOp)
+            ring.dequeue_maybe(|i| if *i == 1 { Err(Error::Ignored) } else { Ok(()) }),
+            Err(Error::Ignored)
         );
         assert_eq!(ring.len(), 1);
     }
@@ -145,8 +145,8 @@ mod tests {
         let mut ring = Ring::from(vec![0; 1]);
         assert_eq!(ring.len(), 0);
         assert_matches!(
-            ring.enqueue_maybe(|i| if *i == 0 { Err(Error::NoOp) } else { Ok(()) }),
-            Err(Error::NoOp)
+            ring.enqueue_maybe(|i| if *i == 0 { Err(Error::Ignored) } else { Ok(()) }),
+            Err(Error::Ignored)
         );
         assert_eq!(ring.len(), 0);
         assert_matches!(ring.dequeue_with(|_| {}), Err(Error::Exhausted));

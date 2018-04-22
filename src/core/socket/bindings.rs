@@ -108,7 +108,10 @@ impl Bindings {
                 socket_addrs: self.socket_addrs.clone(),
             })
         } else {
-            Err(Error::InUse)
+            Err(Error::BindingInUse(match socket_addr {
+                TaggedSocketAddr::Udp(addr) => addr,
+                TaggedSocketAddr::Tcp(addr) => addr,
+            }))
         }
     }
 }
@@ -137,6 +140,9 @@ mod tests {
             port: 1024,
         };
         let _addr_lease = bindings.bind_udp(socket_addr).unwrap();
-        assert_matches!(bindings.bind_udp(socket_addr), Err(Error::InUse));
+        assert_matches!(
+            bindings.bind_udp(socket_addr),
+            Err(Error::BindingInUse(_))
+        );
     }
 }
