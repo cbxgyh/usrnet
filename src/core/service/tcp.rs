@@ -10,9 +10,8 @@ use core::service::{
     ipv4,
 };
 use core::socket::{
-    Packet,
-    Socket,
     SocketSet,
+    TaggedSocket,
 };
 
 /// Sends a TCP packet via the interface.
@@ -51,10 +50,20 @@ pub fn recv_packet(
 
     let tcp_repr = TcpRepr::deserialize(&tcp_packet);
 
-    let packet = Packet::Tcp((*ipv4_repr, tcp_repr, tcp_packet.payload()));
-    for socket in socket_set.iter_mut() {
-        socket.recv_forward(&packet).ok();
-    }
+    socket_set
+        .iter_mut()
+        .filter_map(|socket| match *socket {
+            TaggedSocket::Tcp(ref mut socket) => Some(socket),
+            _ => None,
+        })
+        .for_each(|socket| {
+            if let Err(err) = socket.recv_enqueue(ipv4_repr, &tcp_repr, tcp_packet.payload()) {
+                debug!(
+                    "Error enqueueing TCP packet for receiving via socket with {:?}.",
+                    err
+                );
+            }
+        });
 
     // TODO: Send RST message if SYN packet was not accepted by any sockets.
     Ok(())

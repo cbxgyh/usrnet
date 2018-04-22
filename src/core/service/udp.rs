@@ -15,9 +15,9 @@ use core::service::{
     ipv4,
 };
 use core::socket::{
-    Packet,
-    Socket,
+    SocketAddr,
     SocketSet,
+    TaggedSocket,
 };
 
 /// Sends a UDP packet via ther interface.
@@ -57,14 +57,31 @@ pub fn recv_packet(
 
     let udp_repr = UdpRepr::deserialize(&udp_packet);
 
-    let packet = Packet::Udp(*ipv4_repr, udp_repr, udp_packet.payload());
+    let dst_socket_addr = SocketAddr {
+        addr: ipv4_repr.dst_addr,
+        port: udp_repr.dst_port,
+    };
     let mut unreachable = true;
-    for socket in socket_set.iter_mut() {
-        match socket.recv_forward(&packet) {
-            Ok(_) => unreachable = false,
-            _ => {}
-        }
-    }
+
+    socket_set
+        .iter_mut()
+        .filter_map(|socket| match *socket {
+            TaggedSocket::Udp(ref mut socket) => if socket.accepts(&dst_socket_addr) {
+                Some(socket)
+            } else {
+                None
+            },
+            _ => None,
+        })
+        .for_each(|socket| {
+            unreachable = false;
+            if let Err(err) = socket.recv_enqueue(ipv4_repr, &udp_repr, udp_packet.payload()) {
+                debug!(
+                    "Error enqueueing UDP packet for receiving via socket with {:?}.",
+                    err
+                );
+            }
+        });
 
     // Send an ICMP message indicating packet has been ignored because no
     // UDP sockets are bound to the specified port.

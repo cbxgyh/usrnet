@@ -1,3 +1,5 @@
+use env_logger;
+
 use std::process::{
     ExitStatus,
     Output as StdOutput,
@@ -18,6 +20,7 @@ use usrnet::examples::*;
 
 lazy_static! {
     static ref TEST: Mutex<()> = {
+        env_logger::init();
         Mutex::new(())
     };
 

@@ -12,9 +12,9 @@ use core::service::{
     ipv4,
 };
 use core::socket::{
-    Packet,
-    Socket,
+    RawType,
     SocketSet,
+    TaggedSocket,
 };
 
 /// Send an Ethernet frame via an interface.
@@ -49,12 +49,24 @@ pub fn recv_frame(
         return Err(Error::NoOp);
     }
 
-    for socket in socket_set.iter_mut() {
-        let packet = Packet::Raw(eth_frame.as_ref());
-        match socket.recv_forward(&packet) {
-            _ => {}
-        }
-    }
+    socket_set
+        .iter_mut()
+        .filter_map(|socket| match *socket {
+            TaggedSocket::Raw(ref mut socket) => if socket.raw_type() == RawType::Ethernet {
+                Some(socket)
+            } else {
+                None
+            },
+            _ => None,
+        })
+        .for_each(|socket| {
+            if let Err(err) = socket.recv_enqueue(eth_frame.as_ref()) {
+                debug!(
+                    "Error enqueueing Ethernet frame for receiving via socket with {:?}.",
+                    err
+                );
+            }
+        });
 
     match eth_frame.payload_type() {
         eth_types::ARP => arp::recv_packet(interface, &eth_frame),

@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::time::Instant;
 
 /// An environment that provides the current time.
-pub trait Env: Clone + Debug {
+pub trait Env: Debug {
     /// Returns an instance corresponding to "now".
     fn now_instant(&self) -> Instant;
 }

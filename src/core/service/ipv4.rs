@@ -19,9 +19,9 @@ use core::service::{
     icmpv4,
 };
 use core::socket::{
-    Packet,
-    Socket,
+    RawType,
     SocketSet,
+    TaggedSocket,
 };
 
 /// Send a raw IPv4 packet via the interface.
@@ -98,12 +98,24 @@ pub fn recv_packet(
             .set_eth_addr_for_ip(ipv4_packet.src_addr(), eth_frame.src_addr());
     }
 
-    for socket in socket_set.iter_mut() {
-        let packet = Packet::Ipv4(ipv4_packet.as_ref());
-        match socket.recv_forward(&packet) {
-            _ => {}
-        }
-    }
+    socket_set
+        .iter_mut()
+        .filter_map(|socket| match *socket {
+            TaggedSocket::Raw(ref mut socket) => if socket.raw_type() == RawType::Ipv4 {
+                Some(socket)
+            } else {
+                None
+            },
+            _ => None,
+        })
+        .for_each(|socket| {
+            if let Err(err) = socket.recv_enqueue(ipv4_packet.as_ref()) {
+                debug!(
+                    "Error enqueueing IPv4 packet for receiving via socket with {:?}.",
+                    err
+                );
+            }
+        });
 
     let ipv4_repr = Ipv4Repr::deserialize(&ipv4_packet)?;
 

@@ -7,7 +7,6 @@ pub mod bindings;
 pub mod env;
 pub mod raw;
 pub mod set;
-pub mod socket;
 pub mod tagged;
 pub mod tcp;
 pub mod udp;
@@ -23,10 +22,14 @@ pub use self::raw::{
     RawType,
 };
 pub use self::set::SocketSet;
-pub use self::socket::{
-    Packet,
-    Socket,
-};
 pub use self::tagged::TaggedSocket;
-pub use self::tcp::TcpSocket;
+pub use self::tcp::{
+    Tcp,
+    TcpClosed,
+    TcpContext,
+    TcpEstablished,
+    TcpSocket,
+    TcpState,
+    TcpSynSent,
+};
 pub use self::udp::UdpSocket;

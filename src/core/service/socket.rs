@@ -1,4 +1,7 @@
-use Error;
+use {
+    Error,
+    Result,
+};
 use core::repr::Ipv4Packet;
 use core::service::{
     ethernet,
@@ -8,63 +11,91 @@ use core::service::{
     ipv4,
 };
 use core::socket::{
-    Packet,
-    Socket,
+    RawSocket,
+    RawType,
     SocketSet,
+    TaggedSocket,
+    TcpSocket,
+    UdpSocket,
 };
 
-/// Sends out any packets enqueued in the sockets via an interface.
+/// Sends out as many socket enqueued packets as possible via an interface.
 pub fn send(interface: &mut Interface, socket_set: &mut SocketSet) {
-    for socket in socket_set.iter_mut() {
-        loop {
-            let ok_or_err = socket.send_forward(|packet| {
-                match packet {
-                    Packet::Raw(ref eth_buffer) => {
-                        ethernet::send_frame(interface, eth_buffer.len(), |eth_frame| {
-                            // NOTE: We overwrite the MAC source address so the socket user should
-                            // ensure this is set correctly in the frame they are writing.
-                            eth_frame.as_mut().copy_from_slice(eth_buffer);
-                        })
-                    }
-                    Packet::Ipv4(ref ipv4_buffer) => {
-                        if let Ok(ipv4_packet) = Ipv4Packet::try_new(ipv4_buffer) {
-                            let ipv4_packet_len = ipv4_packet.as_ref().len();
-                            ipv4::send_packet_raw(
-                                interface,
-                                ipv4_packet.dst_addr(),
-                                ipv4_packet_len,
-                                |ipv4_buffer| {
-                                    ipv4_buffer.copy_from_slice(ipv4_packet.as_ref());
-                                },
-                            )
-                        } else {
-                            Ok(())
-                        }
-                    }
-                    Packet::Tcp((ref ipv4_repr, ref tcp_repr, ref payload)) => {
-                        tcp::send_packet(interface, ipv4_repr, tcp_repr, |payload_| {
-                            payload_.copy_from_slice(payload);
-                        })
-                    }
-                    Packet::Udp(ref ipv4_repr, ref udp_repr, ref payload) => {
-                        udp::send_packet(interface, ipv4_repr, udp_repr, |payload_| {
-                            payload_.copy_from_slice(payload);
-                        })
-                    }
-                    _ => Err(Error::NoOp),
-                }
-            });
+    // Iterate over the sockets in round robin fashion (to avoid starvation) and
+    // try to send a packet for each socket. Stop sending packets once we encounter
+    // an error for each socket. This implies either (1) all the sockets have been
+    // exhausted or (2) the device is busy.
+    loop {
+        let mut errors = 0;
+
+        for socket in socket_set.iter_mut() {
+            let ok_or_err = match *socket {
+                TaggedSocket::Raw(ref mut socket) => send_raw_socket(interface, socket),
+                TaggedSocket::Tcp(ref mut socket) => send_tcp_socket(interface, socket),
+                TaggedSocket::Udp(ref mut socket) => send_udp_socket(interface, socket),
+            };
 
             match ok_or_err {
-                Ok(_) => continue,
-                Err(Error::Exhausted) => break,
+                Ok(_) => {}
                 Err(err) => {
-                    debug!("Error sending packet with {:?}.", err);
-                    break;
+                    // We could make this better by terminating immediately if we specifically
+                    // knew the device was busy. We need to refactor our error handling a bit
+                    // to make this possible.
+                    warn!("Error sending packet with {:?}.", err);
+                    errors += 1;
                 }
             }
         }
+
+        if errors >= socket_set.count() {
+            break;
+        }
     }
+}
+
+fn send_raw_socket(interface: &mut Interface, socket: &mut RawSocket) -> Result<()> {
+    match socket.raw_type() {
+        RawType::Ethernet => {
+            socket.send_dequeue(|eth_buffer| {
+                ethernet::send_frame(interface, eth_buffer.len(), |eth_frame| {
+                    // NOTE: We overwrite the MAC source address so the socket user should
+                    // ensure this is set correctly in the frame they are writing.
+                    eth_frame.as_mut().copy_from_slice(eth_buffer);
+                })
+            })
+        }
+        RawType::Ipv4 => socket.send_dequeue(|ipv4_buffer| {
+            if let Ok(ipv4_packet) = Ipv4Packet::try_new(ipv4_buffer) {
+                ipv4::send_packet_raw(
+                    interface,
+                    ipv4_packet.dst_addr(),
+                    ipv4_buffer.len(),
+                    |ipv4_packet| {
+                        ipv4_packet.copy_from_slice(ipv4_buffer);
+                    },
+                )
+            } else {
+                warn!("Raw socket attempted to send a malformed IPv4 packet.");
+                Ok(())
+            }
+        }),
+    }
+}
+
+fn send_tcp_socket(interface: &mut Interface, socket: &mut TcpSocket) -> Result<()> {
+    socket.send_dequeue(|ipv4_repr, tcp_repr, payload| {
+        tcp::send_packet(interface, ipv4_repr, tcp_repr, |payload_| {
+            payload_.copy_from_slice(payload);
+        })
+    })
+}
+
+fn send_udp_socket(interface: &mut Interface, socket: &mut UdpSocket) -> Result<()> {
+    socket.send_dequeue(|ipv4_repr, udp_repr, payload| {
+        udp::send_packet(interface, ipv4_repr, udp_repr, |payload_| {
+            payload_.copy_from_slice(payload);
+        })
+    })
 }
 
 /// Reads frames from an interface and forwards packets to the appropriate
@@ -73,17 +104,20 @@ pub fn recv(interface: &mut Interface, socket_set: &mut SocketSet) {
     let mut eth_buffer = vec![0; interface.dev.max_transmission_unit()];
 
     loop {
-        match interface.dev.recv(&mut eth_buffer) {
-            Ok(buffer_len) => {
-                match ethernet::recv_frame(interface, &mut eth_buffer[.. buffer_len], socket_set) {
-                    Ok(_) => continue,
-                    Err(Error::Address) => continue,
-                    Err(Error::NoOp) => continue,
-                    Err(err) => warn!("Error processing ethernet with {:?}", err),
-                }
-            }
+        let buffer_len = match interface.dev.recv(&mut eth_buffer) {
+            Ok(buffer_len) => buffer_len,
             Err(Error::Exhausted) => break,
-            Err(err) => warn!("Error receiving ethernet with {:?}", err),
+            Err(err) => {
+                warn!("Error receiving Ethernet frame with {:?}.", err);
+                break;
+            }
         };
+
+        match ethernet::recv_frame(interface, &eth_buffer[.. buffer_len], socket_set) {
+            Ok(_) => continue,
+            Err(Error::NoOp) => continue,
+            Err(Error::Address) => continue,
+            Err(err) => warn!("Error processing Ethernet frame with {:?}", err),
+        }
     }
 }

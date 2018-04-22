@@ -1,8 +1,5 @@
-use Result;
 use core::socket::{
-    Packet,
     RawSocket,
-    Socket,
     TcpSocket,
     UdpSocket,
 };
@@ -12,30 +9,6 @@ pub enum TaggedSocket {
     Raw(RawSocket),
     Udp(UdpSocket),
     Tcp(TcpSocket),
-    #[doc(hidden)] ___Exhaustive,
-}
-
-impl Socket for TaggedSocket {
-    fn send_forward<F, R>(&mut self, f: F) -> Result<R>
-    where
-        F: FnOnce(Packet) -> Result<R>,
-    {
-        match *self {
-            TaggedSocket::Raw(ref mut socket) => socket.send_forward(f),
-            TaggedSocket::Tcp(ref mut socket) => socket.send_forward(f),
-            TaggedSocket::Udp(ref mut socket) => socket.send_forward(f),
-            _ => panic!("Unsupported socket!"),
-        }
-    }
-
-    fn recv_forward(&mut self, packet: &Packet) -> Result<()> {
-        match *self {
-            TaggedSocket::Raw(ref mut socket) => socket.recv_forward(packet),
-            TaggedSocket::Tcp(ref mut socket) => socket.recv_forward(packet),
-            TaggedSocket::Udp(ref mut socket) => socket.recv_forward(packet),
-            _ => panic!("Unsupported socket!"),
-        }
-    }
 }
 
 impl TaggedSocket {

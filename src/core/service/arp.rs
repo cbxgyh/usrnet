@@ -43,6 +43,10 @@ pub fn recv_packet(interface: &mut Interface, eth_frame: &EthernetFrame<&[u8]>) 
         return Err(Error::NoOp);
     }
 
+    debug!(
+        "Received ARP, adding mapping from {} to {}.",
+        arp_repr.source_proto_addr, arp_repr.source_hw_addr
+    );
     interface
         .arp_cache
         .set_eth_addr_for_ip(arp_repr.source_proto_addr, arp_repr.source_hw_addr);

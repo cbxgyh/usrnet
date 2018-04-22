@@ -27,13 +27,13 @@ pub static RAW_SOCKET_PACKETS: usize = 128;
 pub static UDP_SOCKET_PACKETS: usize = 128;
 
 /// An environment for creating sockets configured for a particular interface.
-pub struct SocketEnv<T: TimeEnv> {
+pub struct SocketEnv<T: 'static + TimeEnv + Clone> {
     bindings: Bindings,
     interface_mtu: usize,
     time_env: T,
 }
 
-impl<T: TimeEnv> SocketEnv<T> {
+impl<T: 'static + TimeEnv + Clone> SocketEnv<T> {
     /// Creates a new socket environment.
     pub fn new(interface: &Interface, time_env: T) -> SocketEnv<T> {
         SocketEnv {
@@ -84,12 +84,12 @@ impl<T: TimeEnv> SocketEnv<T> {
     }
 
     /// Creates a new TCP socket.
-    pub fn tcp_socket(&self, socket_addr: SocketAddr) -> Result<TcpSocket<T>> {
+    pub fn tcp_socket(&self, socket_addr: SocketAddr) -> Result<TcpSocket> {
         let binding = self.bindings.bind_tcp(socket_addr)?;
         Ok(TcpSocket::new(
             binding,
-            self.time_env.clone(),
             self.interface_mtu,
+            self.time_env.clone(),
         ))
     }
 }

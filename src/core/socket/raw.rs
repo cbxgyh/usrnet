@@ -1,11 +1,4 @@
-use {
-    Error,
-    Result,
-};
-use core::socket::{
-    Packet,
-    Socket,
-};
+use Result;
 use core::storage::{
     Ring,
     Slice,
@@ -25,52 +18,6 @@ pub struct RawSocket {
     recv_buffer: Ring<Slice<u8>>,
 }
 
-impl Socket for RawSocket {
-    fn send_forward<F, R>(&mut self, f: F) -> Result<R>
-    where
-        F: FnOnce(Packet) -> Result<R>,
-    {
-        let raw_type = self.raw_type;
-
-        self.send_buffer.dequeue_maybe(|buffer| match raw_type {
-            RawType::Ethernet => {
-                let packet = Packet::Raw(&mut buffer[..]);
-                f(packet)
-            }
-            RawType::Ipv4 => {
-                let packet = Packet::Ipv4(&mut buffer[..]);
-                f(packet)
-            }
-        })
-    }
-
-    fn recv_forward(&mut self, packet: &Packet) -> Result<()> {
-        let raw_type = self.raw_type;
-
-        self.recv_buffer.enqueue_maybe(|buffer| match *packet {
-            Packet::Raw(ref eth_buffer) => {
-                if raw_type != RawType::Ethernet {
-                    return Err(Error::NoOp);
-                }
-
-                buffer.try_resize(eth_buffer.len(), 0)?;
-                buffer.copy_from_slice(eth_buffer);
-                Ok(())
-            }
-            Packet::Ipv4(ref ipv4_buffer) => {
-                if raw_type != RawType::Ipv4 {
-                    return Err(Error::NoOp);
-                }
-
-                buffer.try_resize(ipv4_buffer.len(), 0)?;
-                buffer.copy_from_slice(ipv4_buffer);
-                Ok(())
-            }
-            _ => Err(Error::NoOp),
-        })
-    }
-}
-
 impl RawSocket {
     /// Creates a socket with the provided send and receive buffers.
     pub fn new(
@@ -86,10 +33,6 @@ impl RawSocket {
     }
 
     /// Enqueues a packet with buffer_len bytes for sending.
-    ///
-    /// # Errors
-    ///
-    /// An Error::Exhausted occurs if the send buffer is full.
     pub fn send(&mut self, buffer_len: usize) -> Result<&mut [u8]> {
         self.send_buffer.enqueue_maybe(|buffer| {
             buffer.try_resize(buffer_len, 0)?;
@@ -103,11 +46,31 @@ impl RawSocket {
     }
 
     /// Dequeues a received packet from the socket.
-    ///
-    /// # Errors
-    ///
-    /// An Error::Exhausted occurs if the receive buffer is full.
     pub fn recv(&mut self) -> Result<&[u8]> {
         self.recv_buffer.dequeue_with(|buffer| &buffer[..])
+    }
+
+    /// Dequeues a packet enqueued for sending via a function f.
+    ///
+    /// The packet is only dequeued if f does not return an error.
+    pub fn send_dequeue<F, R>(&mut self, f: F) -> Result<R>
+    where
+        F: FnOnce(&[u8]) -> Result<R>,
+    {
+        self.send_buffer.dequeue_maybe(|buffer| f(&buffer[..]))
+    }
+
+    /// Enqueues a packet for receiving.
+    pub fn recv_enqueue(&mut self, packet: &[u8]) -> Result<()> {
+        self.recv_buffer.enqueue_maybe(|buffer| {
+            buffer.try_resize(packet.len(), 0)?;
+            buffer.copy_from_slice(packet);
+            Ok(())
+        })
+    }
+
+    /// Returns the type of raw packets this socket contains.
+    pub fn raw_type(&self) -> RawType {
+        self.raw_type
     }
 }

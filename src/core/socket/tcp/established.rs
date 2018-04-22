@@ -8,33 +8,29 @@ use core::repr::{
     TcpRepr,
 };
 use core::socket::{
-    Packet,
     SocketAddr,
-};
-use core::socket::tcp::state::{
     Tcp,
     TcpContext,
     TcpState,
 };
-use core::time::Env as TimeEnv;
 
 /// The TCP ESTABLISHED state.
 #[derive(Debug)]
-pub struct TcpEstablished<T: TimeEnv> {
+pub struct TcpEstablished {
     pub connected_to: SocketAddr,
     pub ack_num: u32,
     pub ack_sent: bool,
     pub seq_num: u32,
-    pub context: TcpContext<T>,
+    pub context: TcpContext,
 }
 
-impl<T: TimeEnv> Tcp<T> for TcpEstablished<T> {
-    fn send_forward<F, R>(self, f: F) -> (TcpState<T>, Result<R>)
+impl Tcp for TcpEstablished {
+    fn send_dequeue<F, R>(&mut self, f: F) -> (Option<TcpState>, Result<R>)
     where
-        F: FnOnce(Packet) -> Result<R>,
+        F: FnOnce(&Ipv4Repr, &TcpRepr, &[u8]) -> Result<R>,
     {
         if self.ack_sent {
-            return (self.into(), Err(Error::Exhausted));
+            return (None, Err(Error::Exhausted));
         }
 
         // Send one ACK for now, retransmissions will be implemented later.
@@ -58,30 +54,21 @@ impl<T: TimeEnv> Tcp<T> for TcpEstablished<T> {
             payload_len: tcp_repr.header_len() as u16,
         };
 
-        let mut payload = [0; 0];
-        let packet = Packet::Tcp((ipv4_repr, tcp_repr, &mut payload[..]));
-
-        match f(packet) {
+        match f(&ipv4_repr, &tcp_repr, &[0; 0]) {
             Ok(res) => {
                 debug!(
                     "TCP socket {:?} sent ACK for SEQ_NUM {:?}.",
                     self, self.ack_num
                 );
-                let established = TcpEstablished {
-                    connected_to: self.connected_to,
-                    ack_num: self.ack_num,
-                    ack_sent: true,
-                    seq_num: self.seq_num,
-                    context: self.context,
-                };
-                (TcpState::from(established), Ok(res))
+                self.ack_sent = true;
+                (None, Ok(res))
             }
             Err(err) => {
                 debug!(
                     "TCP socket {:?} encountered {:?} when sending ACK for SEQ_NUM {:?}.",
                     self, err, self.ack_num
                 );
-                (self.into(), Err(err))
+                (None, Err(err))
             }
         }
     }
