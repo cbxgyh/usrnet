@@ -11,7 +11,6 @@ use core::socket::{
     SocketAddr,
     Tcp,
     TcpContext,
-    TcpState,
 };
 
 /// The TCP ESTABLISHED state.
@@ -25,12 +24,12 @@ pub struct TcpEstablished {
 }
 
 impl Tcp for TcpEstablished {
-    fn send_dequeue<F, R>(&mut self, f: F) -> (Option<TcpState>, Result<R>)
+    fn send_dequeue<F, R>(&mut self, f: &mut F) -> Result<R>
     where
-        F: FnOnce(&Ipv4Repr, &TcpRepr, &[u8]) -> Result<R>,
+        F: FnMut(&Ipv4Repr, &TcpRepr, &[u8]) -> Result<R>,
     {
         if self.ack_sent {
-            return (None, Err(Error::Exhausted));
+            return Err(Error::Exhausted);
         }
 
         // Send one ACK for now, retransmissions will be implemented later.
@@ -57,19 +56,27 @@ impl Tcp for TcpEstablished {
         match f(&ipv4_repr, &tcp_repr, &[0; 0]) {
             Ok(res) => {
                 debug!(
-                    "TCP socket {:?} sent ACK for SEQ_NUM {:?}.",
-                    self, self.ack_num
+                    "ESTABLISHED @ ({}, {}) sent ACK for SEQ_NUM {}.",
+                    self.context.binding, self.connected_to, self.ack_num
                 );
                 self.ack_sent = true;
-                (None, Ok(res))
+                Ok(res)
             }
             Err(err) => {
                 debug!(
-                    "TCP socket {:?} encountered {:?} when sending ACK for SEQ_NUM {:?}.",
-                    self, err, self.ack_num
+                    "ESTABLISHED @ ({}, {}) encountered {:?} when sending ACK for SEQ_NUM {}.",
+                    self.context.binding, self.connected_to, err, self.ack_num
                 );
-                (None, Err(err))
+                Err(err)
             }
         }
+    }
+}
+
+impl TcpEstablished {
+    /// Checks if the state accepts packets with particular (source, destination)
+    /// addresses.
+    pub fn accepts(&self, src_addr: &SocketAddr, dst_addr: &SocketAddr) -> bool {
+        (&self.connected_to == src_addr) && (self.context.binding.as_ref() == dst_addr)
     }
 }

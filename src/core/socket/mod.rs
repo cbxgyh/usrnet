@@ -15,6 +15,7 @@ pub use self::bindings::{
     Bindings,
     SocketAddr,
     SocketAddrLease,
+    TaggedSocketAddr,
 };
 pub use self::env::SocketEnv;
 pub use self::raw::{
@@ -28,8 +29,10 @@ pub use self::tcp::{
     TcpClosed,
     TcpContext,
     TcpEstablished,
+    TcpListen,
     TcpSocket,
     TcpState,
+    TcpSynRecv,
     TcpSynSent,
 };
 pub use self::udp::UdpSocket;

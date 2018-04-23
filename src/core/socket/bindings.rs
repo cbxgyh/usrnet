@@ -45,9 +45,35 @@ impl Into<SocketAddrV4> for SocketAddr {
 
 /// A socket address corresponding to different socket types.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-enum TaggedSocketAddr {
+pub enum TaggedSocketAddr {
     Udp(SocketAddr),
     Tcp(SocketAddr),
+}
+
+impl Deref for TaggedSocketAddr {
+    type Target = SocketAddr;
+
+    fn deref(&self) -> &SocketAddr {
+        match *self {
+            TaggedSocketAddr::Tcp(ref addr) => addr,
+            TaggedSocketAddr::Udp(ref addr) => addr,
+        }
+    }
+}
+
+impl Display for TaggedSocketAddr {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        match *self {
+            TaggedSocketAddr::Tcp(ref addr) => write!(f, "{} (TCP)", addr),
+            TaggedSocketAddr::Udp(ref addr) => write!(f, "{} (UDP)", addr),
+        }
+    }
+}
+
+impl PartialEq<SocketAddr> for TaggedSocketAddr {
+    fn eq(&self, socket_addr: &SocketAddr) -> bool {
+        socket_addr == self.deref()
+    }
 }
 
 /// A socket address which has been reserved, and is freed for reallocation by
@@ -59,19 +85,28 @@ pub struct SocketAddrLease {
 }
 
 impl Deref for SocketAddrLease {
-    type Target = SocketAddr;
+    type Target = TaggedSocketAddr;
 
-    fn deref(&self) -> &SocketAddr {
-        match self.addr {
-            TaggedSocketAddr::Tcp(ref addr) => addr,
-            TaggedSocketAddr::Udp(ref addr) => addr,
-        }
+    fn deref(&self) -> &TaggedSocketAddr {
+        &self.addr
+    }
+}
+
+impl Display for SocketAddrLease {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        write!(f, "{} (Lease)", self.addr)
     }
 }
 
 impl Drop for SocketAddrLease {
     fn drop(&mut self) {
         self.socket_addrs.borrow_mut().remove(&self.addr);
+    }
+}
+
+impl PartialEq<SocketAddr> for SocketAddrLease {
+    fn eq(&self, socket_addr: &SocketAddr) -> bool {
+        &self.addr == socket_addr
     }
 }
 
@@ -140,9 +175,6 @@ mod tests {
             port: 1024,
         };
         let _addr_lease = bindings.bind_udp(socket_addr).unwrap();
-        assert_matches!(
-            bindings.bind_udp(socket_addr),
-            Err(Error::BindingInUse(_))
-        );
+        assert_matches!(bindings.bind_udp(socket_addr), Err(Error::BindingInUse(_)));
     }
 }

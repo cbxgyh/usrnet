@@ -12,6 +12,8 @@ use core::socket::{
     SocketAddrLease,
     TcpClosed,
     TcpEstablished,
+    TcpListen,
+    TcpSynRecv,
     TcpSynSent,
 };
 use core::time::Env as TimeEnv;
@@ -22,11 +24,11 @@ pub trait Tcp {
     ///
     /// The packet is only dequeued if f does not return an error. In addition,
     /// returns the next TCP state the socket should transition to.
-    fn send_dequeue<F, R>(&mut self, _f: F) -> (Option<TcpState>, Result<R>)
+    fn send_dequeue<F, R>(&mut self, _f: &mut F) -> Result<R>
     where
-        F: FnOnce(&Ipv4Repr, &TcpRepr, &[u8]) -> Result<R>,
+        F: FnMut(&Ipv4Repr, &TcpRepr, &[u8]) -> Result<R>,
     {
-        (None, Err(Error::Exhausted))
+        Err(Error::Exhausted)
     }
 
     /// Enqueues a packet for receiving.
@@ -46,17 +48,21 @@ pub trait Tcp {
 #[derive(Debug)]
 pub enum TcpState {
     Closed(TcpClosed),
+    Listen(TcpListen),
+    SynRecv(TcpSynRecv),
     SynSent(TcpSynSent),
     Established(TcpEstablished),
 }
 
 impl Tcp for TcpState {
-    fn send_dequeue<F, R>(&mut self, f: F) -> (Option<TcpState>, Result<R>)
+    fn send_dequeue<F, R>(&mut self, f: &mut F) -> Result<R>
     where
-        F: FnOnce(&Ipv4Repr, &TcpRepr, &[u8]) -> Result<R>,
+        F: FnMut(&Ipv4Repr, &TcpRepr, &[u8]) -> Result<R>,
     {
         match *self {
             TcpState::Closed(ref mut tcp) => tcp.send_dequeue(f),
+            TcpState::Listen(ref mut tcp) => tcp.send_dequeue(f),
+            TcpState::SynRecv(ref mut tcp) => tcp.send_dequeue(f),
             TcpState::SynSent(ref mut tcp) => tcp.send_dequeue(f),
             TcpState::Established(ref mut tcp) => tcp.send_dequeue(f),
         }
@@ -70,8 +76,23 @@ impl Tcp for TcpState {
     ) -> (Option<TcpState>, Result<()>) {
         match *self {
             TcpState::Closed(ref mut tcp) => tcp.recv_enqueue(ipv4_repr, tcp_repr, payload),
+            TcpState::Listen(ref mut tcp) => tcp.recv_enqueue(ipv4_repr, tcp_repr, payload),
+            TcpState::SynRecv(ref mut tcp) => tcp.recv_enqueue(ipv4_repr, tcp_repr, payload),
             TcpState::SynSent(ref mut tcp) => tcp.recv_enqueue(ipv4_repr, tcp_repr, payload),
             TcpState::Established(ref mut tcp) => tcp.recv_enqueue(ipv4_repr, tcp_repr, payload),
+        }
+    }
+}
+
+impl TcpState {
+    /// Returns a string label for the state.
+    pub fn as_str(&self) -> &'static str {
+        match *self {
+            TcpState::Closed(_) => "CLOSED",
+            TcpState::Listen(_) => "LISTEN",
+            TcpState::SynRecv(_) => "SYN_RECV",
+            TcpState::SynSent(_) => "SYN_SENT",
+            TcpState::Established(_) => "ESTABLISHED",
         }
     }
 }

@@ -21,24 +21,25 @@ use core::socket::{
     TcpState,
 };
 
-/// The TCP SYN_SENT state.
+/// The TCP SYN_RECV state.
 #[derive(Debug)]
-pub struct TcpSynSent {
+pub struct TcpSynRecv {
     pub connecting_to: SocketAddr,
-    pub sent_syn_at: Option<Instant>,
+    pub sent_syn_ack_at: Option<Instant>,
     pub seq_num: u32,
+    pub ack_num: u32,
     pub retransmit_timeout: Duration,
     pub context: TcpContext,
 }
 
-impl Tcp for TcpSynSent {
+impl Tcp for TcpSynRecv {
     fn send_dequeue<F, R>(&mut self, f: &mut F) -> Result<R>
     where
         F: FnMut(&Ipv4Repr, &TcpRepr, &[u8]) -> Result<R>,
     {
         let now = self.context.time_env.now_instant();
 
-        let send_syn = match self.sent_syn_at {
+        let send_syn = match self.sent_syn_ack_at {
             None => true,
             Some(instant) => (now - instant) >= self.retransmit_timeout,
         };
@@ -51,7 +52,7 @@ impl Tcp for TcpSynSent {
             src_port: self.context.binding.port,
             dst_port: self.connecting_to.port,
             seq_num: self.seq_num,
-            ack_num: 0,
+            ack_num: self.ack_num,
             flags: [false; 9],
             // TODO: Set this to the size of our receive buffer?
             window_size: 128,
@@ -60,6 +61,7 @@ impl Tcp for TcpSynSent {
             max_segment_size: Some(536),
         };
 
+        tcp_repr.flags[TcpRepr::FLAG_ACK] = true;
         tcp_repr.flags[TcpRepr::FLAG_SYN] = true;
 
         let ipv4_repr = Ipv4Repr {
@@ -69,22 +71,19 @@ impl Tcp for TcpSynSent {
             payload_len: tcp_repr.header_len() as u16,
         };
 
-        // Caution, consider send failures! This can happen if the destination IP is
-        // not in the ARP cache yet. In such a case, don't move forward the last
-        // time we sent a SYN.
         match f(&ipv4_repr, &tcp_repr, &[0; 0]) {
             Ok(res) => {
                 debug!(
-                    "SYN_SENT @ ({}, {}) sent SYN during active open.",
+                    "SYN_RECV @ ({}, {}) sent SYN + ACK.",
                     self.context.binding, self.connecting_to
                 );
-                self.sent_syn_at = Some(now);
+                self.sent_syn_ack_at = Some(now);
                 self.retransmit_timeout *= 2;
                 Ok(res)
             }
             Err(err) => {
                 debug!(
-                    "SYN_SENT @ ({}, {}) encountered {:?} when sending SYN during active open.",
+                    "SYN_RECV @ ({}, {}) encountered {:?} when sending SYN during active open.",
                     self.context.binding, self.connecting_to, err
                 );
                 Err(err)
@@ -109,19 +108,15 @@ impl Tcp for TcpSynSent {
 
         if tcp_repr.flags[TcpRepr::FLAG_RST] {
             debug!(
-                "SYN_SENT @ ({}, {}) received RST, transition to CLOSED.",
+                "SYN_RECV @ ({}, {}) received RST, transition to CLOSED.",
                 self.context.binding, self.connecting_to
             );
             return (Some(TcpState::Closed(self.to_closed())), Ok(()));
         }
 
-        if !tcp_repr.flags[TcpRepr::FLAG_ACK] {
-            return (None, Err(Error::Ignored));
-        }
-
-        if tcp_repr.flags[TcpRepr::FLAG_SYN] {
+        if tcp_repr.flags[TcpRepr::FLAG_ACK] {
             debug!(
-                "SYN_SENT @ ({}, {}) received SYN, transition to ESTABLISHED.",
+                "SYN_RECV @ ({}, {}) received ACK, transition to ESTABLISHED.",
                 self.context.binding, self.connecting_to
             );
             return (
@@ -134,15 +129,21 @@ impl Tcp for TcpSynSent {
     }
 }
 
-impl TcpSynSent {
-    /// Transitions from SYN_SENT to CLOSED in response to a RST + ACK.
+impl TcpSynRecv {
+    /// Checks if the state accepts packets with particular (source, destination)
+    /// addresses.
+    pub fn accepts(&self, src_addr: &SocketAddr, dst_addr: &SocketAddr) -> bool {
+        (&self.connecting_to == src_addr) && (self.context.binding.as_ref() == dst_addr)
+    }
+
+    /// Transitions from SYN_RECV to CLOSED in response to a RST + ACK.
     pub fn to_closed(&mut self) -> TcpClosed {
         TcpClosed {
             context: self.context.clone(),
         }
     }
 
-    /// Transitions from SYN_SENT to ESTABLISHED in response to a SYN + ACK.
+    /// Transitions from SYN_RECV to ESTABLISHED in response to a SYN + ACK.
     pub fn to_established(&mut self, remote_seq_num: u32) -> TcpEstablished {
         TcpEstablished {
             connected_to: self.connecting_to,

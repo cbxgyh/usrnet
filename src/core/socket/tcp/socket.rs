@@ -15,7 +15,9 @@ use core::socket::{
 };
 use core::time::Env as TimeEnv;
 
-/// A TCP socket.
+/// A TCP socket for reliable stream transfers created. Sockets can be created
+/// by (1) opening client connections to a server or (2) dequeueing established
+/// connections with accept(...).
 #[derive(Debug)]
 pub struct TcpSocket {
     inner: TcpState,
@@ -39,18 +41,16 @@ impl TcpSocket {
         }
     }
 
-    /// Dequeues a packet enqueued for sending via function f.
+    /// Dequeues zero or more packet enqueued for sending via function f.
     ///
-    /// The packet is only dequeued if f does not return an error.
-    pub fn send_dequeue<F, R>(&mut self, f: F) -> Result<R>
+    /// The socket may have several enqueued sockets if it is a listener for which
+    /// we dequeue packets via function f. One packet per socket is dequeued until
+    /// f returns an error.
+    pub fn send_dequeue<F, R>(&mut self, mut f: F) -> Result<R>
     where
-        F: FnOnce(&Ipv4Repr, &TcpRepr, &[u8]) -> Result<R>,
+        F: FnMut(&Ipv4Repr, &TcpRepr, &[u8]) -> Result<R>,
     {
-        let (tcp, ok_or_err) = self.inner.send_dequeue(f);
-        if let Some(tcp) = tcp {
-            self.inner = tcp;
-        }
-        ok_or_err
+        self.inner.send_dequeue(&mut f)
     }
 
     /// Enqueues a packet for receiving.
@@ -76,6 +76,34 @@ impl TcpSocket {
         self.inner = match self.inner {
             TcpState::Closed(ref mut closed) => TcpState::SynSent(closed.to_syn_sent(socket_addr)),
             _ => panic!("TcpSocket::connect(...) requires a closed socket!"),
+        }
+    }
+
+    /// Begins listening for incoming connections.
+    ///
+    /// # Panics
+    ///
+    /// Causes a panic if the connection is not in the closed state!
+    pub fn listen(&mut self, syn_queue_len: usize, est_queue_len: usize) {
+        self.inner = match self.inner {
+            TcpState::Closed(ref mut closed) => {
+                TcpState::Listen(closed.to_listen(syn_queue_len, est_queue_len))
+            }
+            _ => panic!("TcpSocket::listen(...) requires a closed socket!"),
+        }
+    }
+
+    /// Dequeues an established connection if one has been established.
+    ///
+    /// # Panics
+    ///
+    /// Causes a panic if the connection is not in the listening state!
+    pub fn accept(&mut self) -> Option<TcpSocket> {
+        match self.inner {
+            TcpState::Listen(ref mut listen) => listen.accept().map(|established| TcpSocket {
+                inner: TcpState::Established(established),
+            }),
+            _ => panic!("TcpSocket::accept(...) requires a listening socket!"),
         }
     }
 
