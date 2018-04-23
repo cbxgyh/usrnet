@@ -47,6 +47,11 @@ pub fn send(interface: &mut Interface, socket_set: &mut SocketSet) {
                     errors = sockets;
                     break;
                 }
+                Err(Error::Exhausted) => {
+                    // These occur when the sockets are empty, let's not make our log useless
+                    // with a flood of these errors.
+                    errors += 1;
+                }
                 Err(err) => {
                     warn!("Error sending packet with {:?}.", err);
                     errors += 1;
