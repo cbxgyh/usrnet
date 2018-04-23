@@ -23,29 +23,29 @@ Check out the [documentation](https://andreimaximov.github.io/usrnet-docs) for m
 
 ## Tests
 
-In addition to unit tests, the [tests](/tests) directory contains integration tests for some example programs. **These tests will only run successfully on a Linux system** for the same reason as the examples. When developing on a different system, you can use `cargo test --lib` to avoid running these tests.
+In addition to unit tests, the [tests](/tests) directory contains smoke tests for some sample programs. **These tests will only run successfully on a Linux system** for the same reason as the examples. When developing on a different system, you can use `cargo test --lib` to avoid running these tests.
 
 ## Features
 
-I'm writing *usrnet* for learning purposes so it supports only the most basic features, many of which are not complete but are listed under [Upcoming](#upcoming). Feel free to open an issue if you find a bug in an existing feature!
+I'm writing *usrnet* for learning purposes so it supports **only the most basic features**, many of which are not complete but are listed under [Upcoming](#upcoming). Feel free to open an issue if you find a bug in an existing feature!
 
 ### Ethernet
 
 - Uses Ethernet II frames for link layer
 - Supports unicast and broadcast Ethernet frames
 - Supports using and responding to ARP for IP/Ethernet address mapping
-- Supports Raw Ethernet sockets for writing programs like [arping](/examples/arping.rs)
+- Supports Raw Ethernet sockets for writing programs like [arping](/src/examples/arping.rs)
 
 ### IPv4
 
 - Uses default options for IPv4 headers found [here](/src/core/repr/ipv4.rs)
 - Supports a default gateway for routing to the internet
 - Supports ping with ICMP echo request/reply messages
-- Supports Raw IPv4 sockets for writing programs like [ping](/examples/ping.rs)
+- Supports Raw IPv4 sockets for writing programs like [ping](/src/examples/ping.rs)
 
 ### UDP
 
-- Supports UDP sockets for writing programs like [UDP echo servers](/examples/udp_echo_server.rs)
+- Supports UDP sockets for writing programs like [UDP echo servers](/src/examples/udp_echo.rs)
 - Supports traceroute with ICMP destination unreachable responses to UDP packets with an unbound port
 
 ### Upcoming

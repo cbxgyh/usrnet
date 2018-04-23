@@ -36,7 +36,6 @@ lazy_static! {
         Ipv4Address::new([10, 0, 0, 64])
     };
 
-
     /// Default interface IPv4 address with a subnet mask.
     pub static ref DEFAULT_IPV4_ADDR_CIDR: Ipv4AddressCidr = {
         Ipv4AddressCidr::new(*DEFAULT_IPV4_ADDR, 24)

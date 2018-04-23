@@ -22,8 +22,9 @@ use core::time::Env as TimeEnv;
 pub trait Tcp {
     /// Dequeues a packet enqueued for sending via function f.
     ///
-    /// The packet is only dequeued if f does not return an error. In addition,
-    /// returns the next TCP state the socket should transition to.
+    /// The packet is only dequeued if f does not return an error. States
+    /// transitions are not permitted when sending packets, but the current
+    /// state may be updated.
     fn send_dequeue<F, R>(&mut self, _f: &mut F) -> Result<R>
     where
         F: FnMut(&Ipv4Repr, &TcpRepr, &[u8]) -> Result<R>,
@@ -33,7 +34,9 @@ pub trait Tcp {
 
     /// Enqueues a packet for receiving.
     ///
-    /// In addition, returns the next TCP state the socket should transition to.
+    /// In addition, the current TCP state is updated and/or the next TCP state
+    /// the socket should transition to is returned. In certain cases, the
+    /// transition suggestion may be ignored.
     fn recv_enqueue(
         &mut self,
         _ipv4_repr: &Ipv4Repr,
