@@ -1,7 +1,3 @@
-use {
-    Error,
-    Result,
-};
 use core::repr::{
     Ipv4Protocol,
     Ipv4Repr,
@@ -11,6 +7,10 @@ use core::socket::{
     SocketAddr,
     Tcp,
     TcpContext,
+};
+use {
+    Error,
+    Result,
 };
 
 /// The TCP ESTABLISHED state.
@@ -74,8 +74,8 @@ impl Tcp for TcpEstablished {
 }
 
 impl TcpEstablished {
-    /// Checks if the state accepts packets with particular (source, destination)
-    /// addresses.
+    /// Checks if the state accepts packets with particular (source,
+    /// destination) addresses.
     pub fn accepts(&self, src_addr: &SocketAddr, dst_addr: &SocketAddr) -> bool {
         (&self.connected_to == src_addr) && (self.context.binding.as_ref() == dst_addr)
     }

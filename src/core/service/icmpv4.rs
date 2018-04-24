@@ -1,9 +1,5 @@
 use std::mem::swap;
 
-use {
-    Error,
-    Result,
-};
 use core::repr::{
     Icmpv4Message,
     Icmpv4Packet,
@@ -11,8 +7,12 @@ use core::repr::{
     Ipv4Repr,
 };
 use core::service::{
-    Interface,
     ipv4,
+    Interface,
+};
+use {
+    Error,
+    Result,
 };
 
 /// Send an ICMP packet via the interface.

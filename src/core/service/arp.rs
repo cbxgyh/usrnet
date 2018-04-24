@@ -1,7 +1,3 @@
-use {
-    Error,
-    Result,
-};
 use core::repr::{
     eth_types,
     Arp,
@@ -13,6 +9,10 @@ use core::repr::{
 use core::service::{
     ethernet,
     Interface,
+};
+use {
+    Error,
+    Result,
 };
 
 /// Sends an ARP packet via an interface.

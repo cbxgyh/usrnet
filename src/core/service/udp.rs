@@ -1,4 +1,3 @@
-use Result;
 use core::repr::{
     Icmpv4DestinationUnreachable,
     Icmpv4Message,
@@ -10,20 +9,22 @@ use core::repr::{
     UdpRepr,
 };
 use core::service::{
-    Interface,
     icmpv4,
     ipv4,
+    Interface,
 };
 use core::socket::{
     SocketAddr,
     SocketSet,
     TaggedSocket,
 };
+use Result;
 
 /// Sends a UDP packet via ther interface.
 ///
 /// This function takes care of serializing a header, calculating a checksum,
-/// etc. so the caller needs to fill in **only** the payload in the provided buffer.
+/// etc. so the caller needs to fill in **only** the payload in the provided
+/// buffer.
 pub fn send_packet<F>(
     interface: &mut Interface,
     ipv4_repr: &Ipv4Repr,

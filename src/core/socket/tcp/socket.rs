@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use Result;
 use core::repr::{
     Ipv4Repr,
     TcpRepr,
@@ -14,6 +13,7 @@ use core::socket::{
     TcpState,
 };
 use core::time::Env as TimeEnv;
+use Result;
 
 /// A TCP socket for reliable stream transfers created. Sockets can be created
 /// by (1) opening client connections to a server or (2) dequeueing established
@@ -43,9 +43,9 @@ impl TcpSocket {
 
     /// Dequeues zero or more packet enqueued for sending via function f.
     ///
-    /// The socket may have several enqueued sockets if it is a listener for which
-    /// we dequeue packets via function f. One packet per socket is dequeued until
-    /// f returns an error.
+    /// The socket may have several enqueued sockets if it is a listener for
+    /// which we dequeue packets via function f. One packet per socket is
+    /// dequeued until f returns an error.
     pub fn send_dequeue<F, R>(&mut self, mut f: F) -> Result<R>
     where
         F: FnMut(&Ipv4Repr, &TcpRepr, &[u8]) -> Result<R>,

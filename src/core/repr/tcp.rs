@@ -3,11 +3,11 @@ use byteorder::{
     NetworkEndian,
 };
 
+use core::repr::Ipv4Repr;
 use {
     Error,
     Result,
 };
-use core::repr::Ipv4Repr;
 
 /// A TCP header.
 ///
@@ -44,8 +44,8 @@ impl Repr {
 
     pub const FLAG_FIN: usize = 8;
 
-    /// Returns the length of the TCP header (including options!) when serialized
-    /// to a buffer.
+    /// Returns the length of the TCP header (including options!) when
+    /// serialized to a buffer.
     pub fn header_len(&self) -> usize {
         20 + if self.max_segment_size.is_some() {
             4
@@ -252,8 +252,9 @@ impl<T: AsRef<[u8]>> Packet<T> {
 
     /// Tries to create an TCP packet from a byte buffer.
     ///
-    /// NOTE: Use check_encoding() before operating on the packet if constructing
-    /// a packet via a buffer originating from an untrusted source like a link.
+    /// NOTE: Use check_encoding() before operating on the packet if
+    /// constructing a packet via a buffer originating from an untrusted
+    /// source like a link.
     pub fn try_new(buffer: T) -> Result<Packet<T>> {
         if buffer.as_ref().len() < Self::MIN_HEADER_LEN {
             Err(Error::Exhausted)
@@ -268,8 +269,8 @@ impl<T: AsRef<[u8]>> Packet<T> {
         20 + payload_len
     }
 
-    /// Checks if the packet has a valid encoding. This may include checksum, field
-    /// consistency, etc. checks.
+    /// Checks if the packet has a valid encoding. This may include checksum,
+    /// field consistency, etc. checks.
     pub fn check_encoding(&self, ipv4_repr: &Ipv4Repr) -> Result<()> {
         if self.gen_packet_checksum(ipv4_repr) != 0 {
             Err(Error::Checksum)

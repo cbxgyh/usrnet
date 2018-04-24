@@ -3,10 +3,6 @@ use std::time::{
     Instant,
 };
 
-use {
-    Error,
-    Result,
-};
 use core::repr::{
     Ipv4Protocol,
     Ipv4Repr,
@@ -19,6 +15,10 @@ use core::socket::{
     TcpContext,
     TcpEstablished,
     TcpState,
+};
+use {
+    Error,
+    Result,
 };
 
 /// The TCP SYN_SENT state.

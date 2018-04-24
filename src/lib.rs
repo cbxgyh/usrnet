@@ -29,13 +29,14 @@ pub enum Error {
     MacResolution(Ipv4Address),
     /// Indicates an error where a socket binding has already been assigned.
     BindingInUse(SocketAddr),
-    /// Indicates an error where a socket buffer is full or empty, depending on the
-    /// operation being performed.
+    /// Indicates an error where a socket buffer is full or empty, depending on
+    /// the operation being performed.
     Exhausted,
     /// Indicates an error where a an incoming packet was ignored.
     Ignored,
-    /// Indicates an error with a device/interface. This includes situations such as
-    /// writes to a busy device or attempting reads on a device with no Ethernet frames.
+    /// Indicates an error with a device/interface. This includes situations
+    /// such as writes to a busy device or attempting reads on a device
+    /// with no Ethernet frames.
     Device(Option<IOError>),
     /// Indicates an error where a packet or frame is malformed.
     Malformed,

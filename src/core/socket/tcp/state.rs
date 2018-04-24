@@ -1,9 +1,5 @@
 use std::rc::Rc;
 
-use {
-    Error,
-    Result,
-};
 use core::repr::{
     Ipv4Repr,
     TcpRepr,
@@ -17,6 +13,10 @@ use core::socket::{
     TcpSynSent,
 };
 use core::time::Env as TimeEnv;
+use {
+    Error,
+    Result,
+};
 
 /// A generic interface for implementing TCP state behavior and transitions.
 pub trait Tcp {

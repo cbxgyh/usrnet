@@ -4,7 +4,11 @@ use std::process::{
     ExitStatus,
     Output as StdOutput,
 };
-use std::sync::Mutex;
+use std::sync::{
+    Mutex,
+    Once,
+    ONCE_INIT,
+};
 use std::thread;
 use std::time::Duration;
 
@@ -19,18 +23,10 @@ use usrnet::core::time::SystemEnv;
 use usrnet::examples::*;
 
 lazy_static! {
-    static ref TEST: Mutex<()> = {
-        env_logger::init();
-        Mutex::new(())
-    };
-
-    static ref PORT: Mutex<u16> = {
-        Mutex::new(rand::random::<u16>())
-    };
-
-    pub static ref ONE_SEC: Duration = {
-        Duration::from_secs(1)
-    };
+    static ref INIT: Once = ONCE_INIT;
+    static ref TEST: Mutex<()> = { Mutex::new(()) };
+    static ref PORT: Mutex<u16> = { Mutex::new(rand::random::<u16>()) };
+    pub static ref ONE_SEC: Duration = { Duration::from_secs(1) };
 }
 
 #[derive(Debug)]
@@ -86,6 +82,7 @@ pub fn run<F, R>(f: F) -> R
 where
     F: FnOnce(&mut Context) -> R,
 {
+    INIT.call_once(|| env_logger::init());
     let _guard = TEST.lock().unwrap();
 
     // Wait a second or so for the TAP to shutdown before starting the next test.

@@ -4,11 +4,11 @@ use byteorder::{
     WriteBytesExt,
 };
 
+use core::repr::Ipv4Repr;
 use {
     Error,
     Result,
 };
-use core::repr::Ipv4Repr;
 
 /// A UDP header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -90,8 +90,8 @@ impl<T: AsRef<[u8]>> Packet<T> {
 
     /// Tries to create a UDP packet from a byte buffer.
     ///
-    /// NOTE: Use check_encoding() before operating on the packet if the provided
-    /// buffer originates from a untrusted source such as a link.
+    /// NOTE: Use check_encoding() before operating on the packet if the
+    /// provided buffer originates from a untrusted source such as a link.
     pub fn try_new(buffer: T) -> Result<Packet<T>> {
         let buffer_len = buffer.as_ref().len();
 
@@ -107,8 +107,8 @@ impl<T: AsRef<[u8]>> Packet<T> {
         8 + payload_len
     }
 
-    /// Checks if the packet has a valid encoding. This may include checksum, field
-    /// consistency, etc. checks.
+    /// Checks if the packet has a valid encoding. This may include checksum,
+    /// field consistency, etc. checks.
     pub fn check_encoding(&self, ipv4_repr: &Ipv4Repr) -> Result<()> {
         // NOTE: Should enforce checksum if using IPv6, optional for IPv4.
         if self.checksum() != 0 && self.gen_packet_checksum(ipv4_repr) != 0 {

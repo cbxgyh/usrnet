@@ -5,8 +5,8 @@ use std::time::{
 
 use rand;
 
-use Error;
 use core::repr::{
+    ipv4_protocols,
     Icmpv4DestinationUnreachable,
     Icmpv4Message,
     Icmpv4Packet,
@@ -18,7 +18,6 @@ use core::repr::{
     Ipv4Repr,
     UdpPacket,
     UdpRepr,
-    ipv4_protocols,
 };
 use core::service::Interface;
 use core::socket::{
@@ -26,6 +25,7 @@ use core::socket::{
     SocketSet,
 };
 use examples::env;
+use Error;
 
 const PORT_MIN: u16 = 33434;
 
@@ -80,7 +80,8 @@ where
 
 /// Sends a UDP packet to the specified (addr, port).
 ///
-/// The UDP will be enqueued on a socket, not necessarily forwarded onto the link.
+/// The UDP will be enqueued on a socket, not necessarily forwarded onto the
+/// link.
 fn send(
     interface: &mut Interface,
     socket_set: &mut SocketSet,
@@ -129,8 +130,8 @@ fn send(
     }
 }
 
-/// Waits for a Time Exceeded or Destination Unreachable ICMP error in response to a UDP packet
-/// up until the specified timeout.
+/// Waits for a Time Exceeded or Destination Unreachable ICMP error in response
+/// to a UDP packet up until the specified timeout.
 fn recv(
     interface: &mut Interface,
     socket_set: &mut SocketSet,

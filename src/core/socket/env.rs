@@ -1,4 +1,3 @@
-use Result;
 use core::repr::{
     EthernetFrame,
     Ipv4Address,
@@ -19,6 +18,7 @@ use core::storage::{
     Slice,
 };
 use core::time::Env as TimeEnv;
+use Result;
 
 /// Default number of packets a raw socket can buffer.
 pub static RAW_SOCKET_PACKETS: usize = 128;

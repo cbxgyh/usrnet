@@ -4,31 +4,40 @@ use byteorder::{
     WriteBytesExt,
 };
 
+use core::check::internet_checksum;
 use {
     Error,
     Result,
 };
-use core::check::internet_checksum;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DestinationUnreachable {
     PortUnreachable,
-    #[doc(hidden)] ___Exhaustive,
+    #[doc(hidden)]
+    ___Exhaustive,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TimeExceeded {
     TTLExpired,
-    #[doc(hidden)] ___Exhaustive,
+    #[doc(hidden)]
+    ___Exhaustive,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Message {
-    EchoReply { id: u16, seq: u16 },
-    EchoRequest { id: u16, seq: u16 },
+    EchoReply {
+        id: u16,
+        seq: u16,
+    },
+    EchoRequest {
+        id: u16,
+        seq: u16,
+    },
     DestinationUnreachable(DestinationUnreachable),
     TimeExceeded(TimeExceeded),
-    #[doc(hidden)] ___Exhaustive,
+    #[doc(hidden)]
+    ___Exhaustive,
 }
 
 /// An ICMP header.
@@ -169,8 +178,8 @@ impl<T: AsRef<[u8]>> Packet<T> {
 
     /// Tries to create an ICMP packet from a byte buffer.
     ///
-    /// NOTE: Use check_encoding() before operating on the packet if the provided
-    /// buffer originates from a untrusted source such as a link.
+    /// NOTE: Use check_encoding() before operating on the packet if the
+    /// provided buffer originates from a untrusted source such as a link.
     pub fn try_new(buffer: T) -> Result<Packet<T>> {
         if buffer.as_ref().len() < Self::HEADER_LEN || buffer.as_ref().len() > Self::MAX_PACKET_LEN
         {
@@ -185,8 +194,8 @@ impl<T: AsRef<[u8]>> Packet<T> {
         Self::HEADER_LEN + payload_len
     }
 
-    /// Checks if the packet has a valid encoding. This may include checksum, field
-    /// consistency, etc. checks.
+    /// Checks if the packet has a valid encoding. This may include checksum,
+    /// field consistency, etc. checks.
     pub fn check_encoding(&self) -> Result<()> {
         if self.gen_packet_checksum() != 0 {
             Err(Error::Checksum)

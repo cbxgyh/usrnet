@@ -1,4 +1,3 @@
-use Result;
 use core::repr::{
     Ipv4Packet,
     Ipv4Repr,
@@ -6,18 +5,20 @@ use core::repr::{
     TcpRepr,
 };
 use core::service::{
-    Interface,
     ipv4,
+    Interface,
 };
 use core::socket::{
     SocketSet,
     TaggedSocket,
 };
+use Result;
 
 /// Sends a TCP packet via the interface.
 ///
 /// This function takes care of serializing a header, calculating a checksum,
-/// etc. so the caller needs to fill in **only** the payload in the provided buffer.
+/// etc. so the caller needs to fill in **only** the payload in the provided
+/// buffer.
 pub fn send_packet<F>(
     interface: &mut Interface,
     ipv4_repr: &Ipv4Repr,

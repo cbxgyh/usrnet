@@ -33,8 +33,8 @@ impl SocketSet {
         handle
     }
 
-    /// Returns a reference to a socket with the specified handle. Causes a panic
-    /// if the handle is not in use.
+    /// Returns a reference to a socket with the specified handle. Causes a
+    /// panic if the handle is not in use.
     pub fn socket(&mut self, socket_handle: usize) -> &mut TaggedSocket {
         if socket_handle >= self.sockets.len() {
             panic!("Socket handle is not in use.")

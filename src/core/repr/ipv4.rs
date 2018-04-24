@@ -15,11 +15,11 @@ use byteorder::{
     WriteBytesExt,
 };
 
+use core::check::internet_checksum;
 use {
     Error,
     Result,
 };
-use core::check::internet_checksum;
 
 /// [IPv4 address](https://en.wikipedia.org/wiki/IPv4) in network byte order.
 /// See [this](https://en.wikipedia.org/wiki/Classful_network) for a description
@@ -180,7 +180,8 @@ pub enum Protocol {
     ICMP = protocols::ICMP,
     UDP = protocols::UDP,
     TCP = protocols::TCP,
-    #[doc(hidden)] __Nonexhaustive,
+    #[doc(hidden)]
+    __Nonexhaustive,
 }
 
 /// An IPv4 header.
@@ -325,8 +326,8 @@ impl<T: AsRef<[u8]>> Packet<T> {
 
     /// Tries to create an IPv4 packet from a byte buffer.
     ///
-    /// NOTE: Use check_encoding() before operating on the packet if the provided
-    /// buffer originates from a untrusted source such as a link.
+    /// NOTE: Use check_encoding() before operating on the packet if the
+    /// provided buffer originates from a untrusted source such as a link.
     pub fn try_new(buffer: T) -> Result<Packet<T>> {
         if buffer.as_ref().len() < Self::MIN_HEADER_LEN {
             Err(Error::Exhausted)
@@ -340,8 +341,8 @@ impl<T: AsRef<[u8]>> Packet<T> {
         20 + payload_len
     }
 
-    /// Checks if the packet has a valid encoding. This may include checksum, field
-    /// consistency, etc. checks.
+    /// Checks if the packet has a valid encoding. This may include checksum,
+    /// field consistency, etc. checks.
     pub fn check_encoding(&self) -> Result<()> {
         if (self.packet_len() as usize) > self.buffer.as_ref().len()
             || ((self.header_len() * 4) as usize) < Self::MIN_HEADER_LEN

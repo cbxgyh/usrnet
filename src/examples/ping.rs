@@ -3,8 +3,8 @@ use std::time::{
     Instant,
 };
 
-use Error;
 use core::repr::{
+    ipv4_protocols,
     Icmpv4Message,
     Icmpv4Packet,
     Icmpv4Repr,
@@ -12,11 +12,11 @@ use core::repr::{
     Ipv4Packet,
     Ipv4Protocol,
     Ipv4Repr,
-    ipv4_protocols,
 };
 use core::service::Interface;
 use core::socket::SocketSet;
 use examples::env;
+use Error;
 
 /// Sends an ICMP ping request to a host via a raw IP socket.
 pub fn ping(

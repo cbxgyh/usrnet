@@ -3,7 +3,6 @@ use std::time::{
     Instant,
 };
 
-use Error;
 use core::repr::{
     eth_types,
     Arp,
@@ -15,6 +14,7 @@ use core::repr::{
 use core::service::Interface;
 use core::socket::SocketSet;
 use examples::env;
+use Error;
 
 /// Sends an ARP request for an IP address via a raw Ethernet socket.
 pub fn arping(

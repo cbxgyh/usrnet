@@ -9,11 +9,11 @@ use std::net::SocketAddrV4;
 use std::ops::Deref;
 use std::rc::Rc;
 
+use core::repr::Ipv4Address;
 use {
     Error,
     Result,
 };
-use core::repr::Ipv4Address;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 /// An IPv4 + port socket address.
@@ -124,14 +124,14 @@ impl Bindings {
         }
     }
 
-    /// Tries to reserve the specified UDP socket address, returning an Error::InUse
-    /// if the socket address is already in use.
+    /// Tries to reserve the specified UDP socket address, returning an
+    /// Error::InUse if the socket address is already in use.
     pub fn bind_udp(&self, socket_addr: SocketAddr) -> Result<SocketAddrLease> {
         self.bind(TaggedSocketAddr::Udp(socket_addr))
     }
 
-    /// Tries to reserve the specified TCP socket address, returning an Error::InUse
-    /// if the socket address is already in use.
+    /// Tries to reserve the specified TCP socket address, returning an
+    /// Error::InUse if the socket address is already in use.
     pub fn bind_tcp(&self, socket_addr: SocketAddr) -> Result<SocketAddrLease> {
         self.bind(TaggedSocketAddr::Tcp(socket_addr))
     }

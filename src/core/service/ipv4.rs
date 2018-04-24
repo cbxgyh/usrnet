@@ -1,34 +1,34 @@
-use {
-    Error,
-    Result,
-};
 use core::repr::{
     eth_types,
+    ipv4_protocols,
     EthernetFrame,
     Ipv4Address,
     Ipv4Packet,
     Ipv4Repr,
-    ipv4_protocols,
 };
 use core::service::{
     arp,
     ethernet,
+    icmpv4,
     tcp,
     udp,
     Interface,
-    icmpv4,
 };
 use core::socket::{
     RawType,
     SocketSet,
     TaggedSocket,
 };
+use {
+    Error,
+    Result,
+};
 
 /// Send a raw IPv4 packet via the interface.
 ///
-/// The appropriate Ethernet destination address will be inferred by the network stack, but the
-/// callers is responsible for writing an entire well formatted IPv4 packets to the provided
-/// buffer, NOT just the payload!
+/// The appropriate Ethernet destination address will be inferred by the
+/// network stack, but the callers is responsible for writing an entire well
+/// formatted IPv4 packets to the provided buffer, NOT just the payload!
 pub fn send_packet_raw<F>(
     interface: &mut Interface,
     dst_addr: Ipv4Address,

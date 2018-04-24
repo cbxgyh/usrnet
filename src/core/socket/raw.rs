@@ -1,8 +1,8 @@
-use Result;
 use core::storage::{
     Ring,
     Slice,
 };
+use Result;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RawType {

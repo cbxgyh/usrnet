@@ -1,7 +1,3 @@
-use {
-    Error,
-    Result,
-};
 use core::repr::{
     Ipv4Protocol,
     Ipv4Repr,
@@ -15,6 +11,10 @@ use core::socket::{
 use core::storage::{
     Ring,
     Slice,
+};
+use {
+    Error,
+    Result,
 };
 
 /// A UDP socket.

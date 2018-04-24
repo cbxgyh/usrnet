@@ -3,10 +3,6 @@ use std::time::{
     Instant,
 };
 
-use {
-    Error,
-    Result,
-};
 use core::repr::{
     Ipv4Protocol,
     Ipv4Repr,
@@ -19,6 +15,10 @@ use core::socket::{
     TcpContext,
     TcpEstablished,
     TcpState,
+};
+use {
+    Error,
+    Result,
 };
 
 /// The TCP SYN_RECV state.
@@ -130,8 +130,8 @@ impl Tcp for TcpSynRecv {
 }
 
 impl TcpSynRecv {
-    /// Checks if the state accepts packets with particular (source, destination)
-    /// addresses.
+    /// Checks if the state accepts packets with particular (source,
+    /// destination) addresses.
     pub fn accepts(&self, src_addr: &SocketAddr, dst_addr: &SocketAddr) -> bool {
         (&self.connecting_to == src_addr) && (self.context.binding.as_ref() == dst_addr)
     }

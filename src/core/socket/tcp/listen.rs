@@ -3,10 +3,6 @@ use std::time::Duration;
 
 use rand;
 
-use {
-    Error,
-    Result,
-};
 use core::repr::{
     Ipv4Repr,
     TcpRepr,
@@ -18,6 +14,10 @@ use core::socket::{
     TcpEstablished,
     TcpState,
     TcpSynRecv,
+};
+use {
+    Error,
+    Result,
 };
 
 /// The TCP LISTENING state.
@@ -117,7 +117,8 @@ impl TcpListen {
 
     /// Forwards a packet to an ESTABLISHED state.
     ///
-    /// Returns a boolean indicating if the packet was acceptable by any sockets.
+    /// Returns a boolean indicating if the packet was acceptable by any
+    /// sockets.
     pub fn recv_enqueue_syn(
         &mut self,
         ipv4_repr: &Ipv4Repr,
@@ -179,7 +180,8 @@ impl TcpListen {
 
     /// Forwards a packet to a SYN_RECV state.
     ///
-    /// Returns a boolean indicating if the packet was acceptable by any sockets.
+    /// Returns a boolean indicating if the packet was acceptable by any
+    /// sockets.
     pub fn recv_enqueue_est(
         &mut self,
         ipv4_repr: &Ipv4Repr,

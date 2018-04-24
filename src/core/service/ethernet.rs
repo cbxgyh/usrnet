@@ -1,20 +1,20 @@
-use {
-    Error,
-    Result,
-};
 use core::repr::{
     eth_types,
     EthernetFrame,
 };
 use core::service::{
     arp,
-    Interface,
     ipv4,
+    Interface,
 };
 use core::socket::{
     RawType,
     SocketSet,
     TaggedSocket,
+};
+use {
+    Error,
+    Result,
 };
 
 /// Send an Ethernet frame via an interface.

@@ -9,13 +9,13 @@ use byteorder::{
     WriteBytesExt,
 };
 
-use {
-    Error,
-    Result,
-};
 use core::repr::{
     EthernetAddress,
     Ipv4Address,
+};
+use {
+    Error,
+    Result,
 };
 
 #[repr(u16)]

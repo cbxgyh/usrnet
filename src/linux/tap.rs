@@ -2,12 +2,12 @@ use std::io::Error as IOError;
 
 use libc;
 
+use core::dev::Device;
+use linux::libc as _libc;
 use {
     Error,
     Result,
 };
-use core::dev::Device;
-use linux::libc as _libc;
 
 /// [TAP interface](https://www.kernel.org/doc/Documentation/networking/tuntap.txt)
 /// for sending and receiving raw ethernet frames.

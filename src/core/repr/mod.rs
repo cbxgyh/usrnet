@@ -29,13 +29,13 @@ pub use self::icmpv4::{
     TimeExceeded as Icmpv4TimeExceeded,
 };
 pub use self::ipv4::{
+    flags as ipv4_flags,
+    protocols as ipv4_protocols,
     Address as Ipv4Address,
     AddressCidr as Ipv4AddressCidr,
     Packet as Ipv4Packet,
     Protocol as Ipv4Protocol,
     Repr as Ipv4Repr,
-    flags as ipv4_flags,
-    protocols as ipv4_protocols,
 };
 pub use self::tcp::{
     Packet as TcpPacket,

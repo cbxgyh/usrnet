@@ -1,14 +1,10 @@
-use {
-    Error,
-    Result,
-};
 use core::repr::Ipv4Packet;
 use core::service::{
     ethernet,
+    ipv4,
     tcp,
     udp,
     Interface,
-    ipv4,
 };
 use core::socket::{
     RawSocket,
@@ -17,6 +13,10 @@ use core::socket::{
     TaggedSocket,
     TcpSocket,
     UdpSocket,
+};
+use {
+    Error,
+    Result,
 };
 
 /// Sends out as many socket enqueued packets as possible via an interface.
